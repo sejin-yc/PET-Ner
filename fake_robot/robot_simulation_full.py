@@ -10,7 +10,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, R
 from av import VideoFrame
 
 # --- 설정 ---
-MQTT_BROKER = "i14c203.p.ssafy.io"
+MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
 
 # React(Stomp)와 채널 맞추기 (이 부분 아주 잘 작성하셨습니다!)
@@ -29,6 +29,7 @@ robot_x = 50.0
 robot_y = 50.0
 battery = 100.0
 is_webrtc_connected = False # 🚨 연결 상태 확인용 변수 추가
+loop = None
 
 # --- 1. 가짜 비디오 트랙 ---
 class BouncingBallTrack(VideoStreamTrack):
@@ -114,7 +115,8 @@ async def run_webrtc():
         if msg.topic == TOPIC_ANSWER:
             try:
                 payload = json.loads(msg.payload.decode())
-                asyncio.run_coroutine_threadsafe(answer_queue.put(payload), loop)
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(answer_queue.put(payload), loop)
             except Exception as e:
                 logger.error(f"Answer 파싱 에러: {e}")
 
@@ -192,7 +194,12 @@ async def run_data_simulation():
         await asyncio.sleep(0.1) 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
     try:
         loop.create_task(run_data_simulation())
         loop.create_task(run_webrtc())

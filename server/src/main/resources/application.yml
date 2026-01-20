@@ -27,4 +27,4 @@ jwt:
 mqtt:
   broker-url: tcp://mqtt_broker:1883
   client-id: spring-boot-server
-  default-topic: /robot/#
+  default-topic: "#"
