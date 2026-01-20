@@ -6,17 +6,18 @@ import cv2
 import numpy as np
 import random
 import paho.mqtt.client as mqtt
-from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, RTCConfiguration, RTCIceServer
 from aiortc.contrib.media import MediaRelay
 from av import VideoFrame
 
 # --- 설정 ---
-MQTT_BROKER = "localhost"
+MQTT_BROKER = "i14c203.p.ssafy.io"
 MQTT_PORT = 1883
-TOPIC_DATA = "/robot/status"       # 보낼 데이터 (상태)
-TOPIC_CONTROL = "/robot/control"   # 받을 데이터 (명령) ✅ 추가됨
-TOPIC_OFFER = "/robot/peer/offer"
-TOPIC_ANSWER = "/robot/peer/answer"
+
+TOPIC_DATA = "/sub/robot/status"       # 보낼 데이터 (상태)
+TOPIC_CONTROL = "/pub/robot/control"   # 받을 데이터 (명령) ✅ 추가됨
+TOPIC_OFFER = "/sub/peer/offer"
+TOPIC_ANSWER = "/pub/peer/answer"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RobotSim")
@@ -97,7 +98,8 @@ client.loop_start()
 
 # --- 3. WebRTC (동일) ---
 async def run_webrtc():
-    pc = RTCPeerConnection()
+    config = RTCConfiguration(iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")])
+    pc = RTCPeerConnection(configuration=config)
     pc.addTrack(BouncingBallTrack())
 
     offer = await pc.createOffer()
