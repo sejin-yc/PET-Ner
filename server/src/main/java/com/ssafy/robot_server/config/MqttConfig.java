@@ -1,5 +1,6 @@
 package com.ssafy.robot_server.config;
 
+import com.ssafy.robot_server.mqtt.MqttGateway;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,9 +19,8 @@ import org.springframework.messaging.MessageHandler;
 @Configuration
 public class MqttConfig {
 
-    // application.yml에 적어둔 값들을 가져옵니다.
-    //@Value("${mqtt.broker-url}")
-    private String brokerUrl = "tcp://i14c203.p.ssafy.io:1883";
+    @Value("${mqtt.broker-url}")
+    private String brokerUrl;
 
     @Value("${mqtt.client-id}")
     private String clientId;
@@ -28,52 +28,54 @@ public class MqttConfig {
     @Value("${mqtt.default-topic}")
     private String defaultTopic;
 
-    // 1. MQTT 연결 공장 (Connection Factory)
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[]{brokerUrl});
-        options.setCleanSession(true); // 껐다 켜면 이전 기록 삭제 (깔끔하게)
+        options.setCleanSession(true); // 재접속 시 이전 세션 초기화
+        options.setAutomaticReconnect(true); // 자동 재접속 활성화
         factory.setConnectionOptions(options);
         return factory;
     }
 
-    // 2. [수신용] 들어오는 데이터가 지나가는 통로 (Channel)
+    // ==========================================
+    // 1. 받는 놈 (Inbound) 설정
+    // ==========================================
     @Bean
     public MessageChannel mqttInputChannel() {
         return new DirectChannel();
     }
 
-    // 3. [수신용] 귀 (Inbound Adapter) - 로봇의 신호를 구독합니다.
     @Bean
     public MessageProducer inbound() {
-        // 클라이언트 ID 뒤에 _in을 붙여 충돌 방지
+        // 🚨 [수정 포인트 1] ID 뒤에 "_in"을 붙여서 겹치지 않게 함!
         MqttPahoMessageDrivenChannelAdapter adapter =
                 new MqttPahoMessageDrivenChannelAdapter(clientId + "_in", mqttClientFactory(), defaultTopic);
         
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
-        adapter.setQos(1); // 메시지 도달 보장 레벨 (1: 적어도 한 번은 도착)
-        adapter.setOutputChannel(mqttInputChannel()); // 받은 데이터를 위 통로로 보냄
+        adapter.setQos(1);
+        adapter.setOutputChannel(mqttInputChannel());
         return adapter;
     }
 
-    // 4. [발신용] 나가는 데이터가 지나가는 통로 (Channel)
+    // ==========================================
+    // 2. 보내는 놈 (Outbound) 설정
+    // ==========================================
     @Bean
     public MessageChannel mqttOutboundChannel() {
         return new DirectChannel();
     }
 
-    // 5. [발신용] 입 (Outbound Adapter) - 로봇에게 명령을 보냅니다.
     @Bean
     @ServiceActivator(inputChannel = "mqttOutboundChannel")
     public MessageHandler mqttOutbound() {
-        // 클라이언트 ID 뒤에 _out을 붙여 충돌 방지
+        // 🚨 [수정 포인트 2] ID 뒤에 "_out"을 붙여서 겹치지 않게 함!
         MqttPahoMessageHandler messageHandler =
                 new MqttPahoMessageHandler(clientId + "_out", mqttClientFactory());
         
-        messageHandler.setAsync(true); // 비동기 전송 (서버 멈춤 방지)
+        messageHandler.setAsync(true);
         messageHandler.setDefaultTopic(defaultTopic);
         return messageHandler;
     }
