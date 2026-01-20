@@ -23,3 +23,4 @@ server/target/
 mosquitto/data/
 mosquitto/log/
 *.db
+*.log
