@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import SockJS from 'sockjs-client';
+// import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
 
 const SocketTest = () => {
@@ -8,7 +8,7 @@ const SocketTest = () => {
 
   useEffect(() => {
     // 1. 연결할 주소 설정 (http:// 입니다! ws:// 아님)
-    const socket = new SockJS('wss://i14c203.p.ssafy.io/ws');
+    const socket = new WebSocket('wss://i14c203.p.ssafy.io/ws');
     const client = Stomp.over(socket);
 
     // 2. 연결 시도

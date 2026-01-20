@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 const AuthContext = createContext();
 
 // ✅ 백엔드 주소 (마지막에 /api 가 붙어있는지 확인하세요)
-const BASE_URL = 'wss://i14c203.p.ssafy.io/ws';
+const BASE_URL = 'https://i14c203.p.ssafy.io/ws';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

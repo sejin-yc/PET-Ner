@@ -7,29 +7,30 @@ import numpy as np
 import random
 import paho.mqtt.client as mqtt
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, RTCConfiguration, RTCIceServer
-from aiortc.contrib.media import MediaRelay
 from av import VideoFrame
 
 # --- 설정 ---
 MQTT_BROKER = "i14c203.p.ssafy.io"
 MQTT_PORT = 1883
 
-TOPIC_DATA = "/sub/robot/status"       # 보낼 데이터 (상태)
-TOPIC_CONTROL = "/pub/robot/control"   # 받을 데이터 (명령) ✅ 추가됨
-TOPIC_OFFER = "/sub/peer/offer"
-TOPIC_ANSWER = "/pub/peer/answer"
+# React(Stomp)와 채널 맞추기 (이 부분 아주 잘 작성하셨습니다!)
+TOPIC_DATA = "/sub/robot/status"       # Python -> React (상태 전송)
+TOPIC_CONTROL = "/pub/robot/control"   # React -> Python (조종 명령)
+TOPIC_OFFER = "/sub/peer/offer"        # Python -> React (영상 제안)
+TOPIC_ANSWER = "/pub/peer/answer"      # React -> Python (영상 수락)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RobotSim")
 
-# --- 전역 변수 (로봇 상태) ---
+# --- 전역 변수 ---
 current_linear = 0.0
 current_angular = 0.0
-robot_x = 50.0  # 중앙 시작
+robot_x = 50.0  
 robot_y = 50.0
 battery = 100.0
+is_webrtc_connected = False # 🚨 연결 상태 확인용 변수 추가
 
-# --- 1. 가짜 비디오 트랙 (동일) ---
+# --- 1. 가짜 비디오 트랙 ---
 class BouncingBallTrack(VideoStreamTrack):
     def __init__(self):
         super().__init__()
@@ -63,7 +64,6 @@ class BouncingBallTrack(VideoStreamTrack):
 # --- 2. MQTT 설정 ---
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
-# ✅ 명령 수신 콜백 함수
 def on_message(client, userdata, msg):
     global current_linear, current_angular
     try:
@@ -86,8 +86,8 @@ def on_message(client, userdata, msg):
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         logger.info("✅ MQTT 연결 성공!")
-        client.subscribe(TOPIC_ANSWER)  # WebRTC Answer
-        client.subscribe(TOPIC_CONTROL) # ✅ 제어 명령 구독
+        client.subscribe(TOPIC_ANSWER)  
+        client.subscribe(TOPIC_CONTROL) 
     else:
         logger.info(f"❌ MQTT 연결 실패: {rc}")
 
@@ -96,52 +96,87 @@ client.on_message = on_message
 client.connect(MQTT_BROKER, MQTT_PORT, 60)
 client.loop_start()
 
-# --- 3. WebRTC (동일) ---
+# --- 3. WebRTC (핵심 수정됨: 재시도 로직 추가) ---
 async def run_webrtc():
-    config = RTCConfiguration(iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")])
+    global is_webrtc_connected
+    
+    # STUN 서버 설정 (필수)
+    config = RTCConfiguration(iceServers=[
+        RTCIceServer(urls="stun:stun.l.google.com:19302")
+    ])
     pc = RTCPeerConnection(configuration=config)
     pc.addTrack(BouncingBallTrack())
 
-    offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-
-    offer_payload = {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
-    client.publish(TOPIC_OFFER, json.dumps(offer_payload))
-    
+    # Answer를 받을 큐 생성
     answer_queue = asyncio.Queue()
+
     def answer_handler(c, u, msg):
         if msg.topic == TOPIC_ANSWER:
-            payload = json.loads(msg.payload.decode())
-            asyncio.run_coroutine_threadsafe(answer_queue.put(payload), loop)
+            try:
+                payload = json.loads(msg.payload.decode())
+                asyncio.run_coroutine_threadsafe(answer_queue.put(payload), loop)
+            except Exception as e:
+                logger.error(f"Answer 파싱 에러: {e}")
 
     client.message_callback_add(TOPIC_ANSWER, answer_handler)
 
-    try:
-        answer_data = await answer_queue.get()
-        remote_desc = RTCSessionDescription(sdp=answer_data["sdp"], type=answer_data["type"])
-        await pc.setRemoteDescription(remote_desc)
-        logger.info("✅ WebRTC 영상 연결됨!")
-        while True: await asyncio.sleep(1)
-    except Exception as e:
-        logger.error(f"WebRTC 에러: {e}")
-    finally:
-        await pc.close()
+    # 🚨 [수정됨] 연결될 때까지 Offer를 반복해서 보냄
+    # React 페이지가 늦게 켜져도 연결되게 하기 위함
+    logger.info("📡 WebRTC 연결 대기 중... (Offer 전송 시작)")
+    
+    while not is_webrtc_connected:
+        try:
+            # 매번 새로운 Offer 생성하지 않고, 같은 Offer를 재전송해도 됨
+            # 하지만 안전하게 세션 갱신을 위해 체크
+            if pc.signalingState == "stable" or pc.signalingState == "have-local-offer":
+                 # Offer 생성 및 전송
+                offer = await pc.createOffer()
+                await pc.setLocalDescription(offer)
+                
+                offer_payload = {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
+                client.publish(TOPIC_OFFER, json.dumps(offer_payload))
+                logger.info("... Offer 재전송 중 ...")
 
-# --- 4. 데이터 시뮬레이션 (수정됨: 명령에 따라 움직임) ---
+            # Answer가 오는지 3초 동안 기다림
+            try:
+                answer_data = await asyncio.wait_for(answer_queue.get(), timeout=3.0)
+                
+                # Answer 도착!
+                logger.info("📩 Answer 수신됨! 연결 시도...")
+                remote_desc = RTCSessionDescription(sdp=answer_data["sdp"], type=answer_data["type"])
+                await pc.setRemoteDescription(remote_desc)
+                
+                is_webrtc_connected = True
+                logger.info("✅ WebRTC 영상 연결 성공! (초록 공이 튀어야 함)")
+                
+            except asyncio.TimeoutError:
+                # 3초 동안 답장 없으면 루프 돌면서 재전송
+                continue
+
+        except Exception as e:
+            logger.error(f"WebRTC 연결 시도 중 에러: {e}")
+            await asyncio.sleep(1)
+
+    # 연결된 후에는 계속 유지
+    while True:
+        await asyncio.sleep(1)
+        # 혹시 연결 끊기면 다시 처리하는 로직을 넣을 수도 있음
+
+# --- 4. 데이터 시뮬레이션 ---
 async def run_data_simulation():
     global robot_x, robot_y, battery
     
     while True:
-        # ✅ 랜덤 이동 삭제 -> 명령 받은 속도(current_linear/angular)대로 이동
-        # 시뮬레이션 상: Linear(위아래), Angular(좌우)로 매핑 (간소화)
-        robot_y -= current_linear * 0.5  # W 누르면 위로 (Y값 감소가 위쪽)
-        robot_x -= current_angular * 0.5 # D 누르면 오른쪽
+        # 키보드 입력(W/S/A/D)에 따른 이동
+        # 좌표계: React Map에서 위쪽이 y가 작아지는 방향일 수 있으나
+        # 여기서는 일반적인 2D 좌표계(위=y증가) or 화면좌표(위=y감소)에 따라 다름
+        # 일단 React 코드에 맞춰서 동작 확인 필요
+        robot_y -= current_linear * 0.5 
+        robot_x -= current_angular * 0.5 
         
-        # 맵 밖으로 안 나가게 제한 (0~100)
         robot_x = max(0, min(100, robot_x))
         robot_y = max(0, min(100, robot_y))
 
-        # 움직이면 배터리 더 빨리 닳음
         drain = 0.01 if (current_linear == 0 and current_angular == 0) else 0.05
         battery = max(0, battery - drain)
 
@@ -154,7 +189,7 @@ async def run_data_simulation():
             "mode": "manual"
         }
         client.publish(TOPIC_DATA, json.dumps(status_data))
-        await asyncio.sleep(0.1) # 0.1초마다 갱신 (부드러운 움직임)
+        await asyncio.sleep(0.1) 
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

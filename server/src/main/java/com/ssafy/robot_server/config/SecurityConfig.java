@@ -33,7 +33,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 안 씀
             .authorizeHttpRequests(auth -> auth
                 // ✅ 1. 회원가입과 로그인은 무조건 허용 (토큰 검사 X)
-                .requestMatchers(HttpMethod.POST, "/api/users", "/api/users/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/users/**", "/users/**").permitAll()
                 
                 // ✅ 2. 스웨거(Swagger) 문서도 허용
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
@@ -54,7 +54,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173")); // 프론트엔드 주소
+        config.setAllowedOrigins(List.of("http://localhost:5173", "https://i14c203.p.ssafy.io")); // 프론트엔드 주소
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

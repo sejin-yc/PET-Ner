@@ -20,7 +20,7 @@ public class MqttConfig {
 
     // application.yml에 적어둔 값들을 가져옵니다.
     //@Value("${mqtt.broker-url}")
-    private String brokerUrl = "tcp://localhost:1883";
+    private String brokerUrl = "tcp://i14c203.p.ssafy.io:1883";
 
     @Value("${mqtt.client-id}")
     private String clientId;

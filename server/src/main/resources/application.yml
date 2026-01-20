@@ -1,7 +1,7 @@
 spring:
   datasource:
     # ✅ PostgreSQL 주소 (포트 5432 확인)
-    url: jdbc:postgresql://localhost:5432/robot_db
+    url: jdbc:postgresql://robot_db:5432/robot_db
     # ✅ 설치할 때 설정한 아이디/비밀번호 입력 필수!
     username: admin
     password: admin
@@ -25,6 +25,6 @@ jwt:
 # 당장 MQTT를 안 쓴다면 이 부분 때문에 서버가 꺼질 수도 있으니, 
 # 서버가 안 켜지면 mqtt 부분을 주석 처리(#) 해보세요.
 mqtt:
-  broker-url: tcp://localhost:1883
+  broker-url: tcp://mqtt_broker:1883
   client-id: spring-boot-server
   default-topic: /robot/#
