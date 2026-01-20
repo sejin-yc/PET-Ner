@@ -394,3 +394,8 @@
 1768892318: New connection from 172.18.0.1:47484 on port 1883.
 1768892318: New client connected from 172.18.0.1:47484 as auto-3D2D05AF-5BCD-917F-E08C-5E96397FB052 (p2, c1, k60).
 1768892382: Client auto-3D2D05AF-5BCD-917F-E08C-5E96397FB052 closed its connection.
+1768892924: New connection from 172.18.0.1:32838 on port 1883.
+1768892924: New client connected from 172.18.0.1:32838 as auto-7F0F751C-F72F-B1E5-1611-3021717AFC25 (p2, c1, k60).
+1768892932: Client auto-7F0F751C-F72F-B1E5-1611-3021717AFC25 closed its connection.
+1768893705: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1768895506: Saving in-memory database to /mosquitto/data//mosquitto.db.

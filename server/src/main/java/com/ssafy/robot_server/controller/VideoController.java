@@ -4,37 +4,59 @@ import com.ssafy.robot_server.domain.Video;
 import com.ssafy.robot_server.repository.VideoRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/videos") // 👈 프론트엔드가 요청하는 주소와 일치해야 함
-@Tag(name = "4. 영상 관리", description = "특이행동 영상 API")
+@RequestMapping("/api/videos")
+@RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
+@Tag(name = "4. 영상 관리", description = "특이행동/사건사고 영상 API")
 public class VideoController {
 
-    @Autowired
-    private VideoRepository videoRepository;
+    private final VideoRepository videoRepository; // ✅ final 선언
 
     // 1. 목록 조회
     @GetMapping
+    @Operation(summary = "영상 목록 조회", description = "최신순으로 정렬하여 반환합니다.")
     public ResponseEntity<List<Video>> getVideos(@RequestParam Long userId) {
+        // 🚨 Repository 인터페이스에 이 메소드가 없으면 에러 납니다!
+        // List<Video> findByUserIdOrderByCreatedAtDesc(Long userId);
         return ResponseEntity.ok(videoRepository.findByUserIdOrderByCreatedAtDesc(userId));
     }
 
-    // 2. 영상 생성 (이게 없으면 404/403 에러 발생!)
+    // 2. 영상 생성
     @PostMapping
-    @Operation(summary = "영상 생성")
-    public ResponseEntity<Video> createVideo(@RequestBody Video video) {
+    @Operation(summary = "영상 정보 저장")
+    public ResponseEntity<?> createVideo(@RequestBody Video video) {
+        // 필수 정보 체크
+        if (video.getUserId() == null) {
+            return ResponseEntity.badRequest().body("userId는 필수입니다.");
+        }
+        if (video.getUrl() == null || video.getUrl().isEmpty()) {
+            return ResponseEntity.badRequest().body("영상 URL은 필수입니다.");
+        }
+
+        // 생성 시간 자동 설정 (없을 경우)
+        if (video.getCreatedAt() == null) {
+            video.setCreatedAt(LocalDateTime.now());
+        }
+
         return ResponseEntity.ok(videoRepository.save(video));
     }
 
     // 3. 삭제
     @DeleteMapping("/{id}")
+    @Operation(summary = "영상 삭제")
     public ResponseEntity<?> deleteVideo(@PathVariable Long id) {
-        videoRepository.deleteById(id);
-        return ResponseEntity.ok("삭제 완료");
+        if (videoRepository.existsById(id)) {
+            videoRepository.deleteById(id);
+            return ResponseEntity.ok("영상이 삭제되었습니다.");
+        } else {
+            return ResponseEntity.status(404).body("해당 ID의 영상을 찾을 수 없습니다.");
+        }
     }
 }

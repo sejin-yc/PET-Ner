@@ -40,9 +40,9 @@ public class MqttService {
             if ("/sub/robot/status".equals(topic)) {
                 // 1. 상태 데이터 저장
                 RobotStatus s = RobotStatus.builder()
-                        .batteryLevel(json.get("batteryLevel").asInt())
-                        .temperature(json.get("temperature").asDouble())
-                        .isCharging(json.get("isCharging").asBoolean())
+                        .batteryLevel(json.get("batteryLevel").asInt(0))
+                        .temperature(json.get("temperature").asDouble(0.0))
+                        .isCharging(json.get("isCharging").asBoolean(false))
                         // 시뮬레이터가 보낸 좌표도 같이 저장 (엔티티에 필드가 있다면)
                         .x(json.has("x") ? json.get("x").asDouble() : 0.0)
                         .y(json.has("y") ? json.get("y").asDouble() : 0.0)
