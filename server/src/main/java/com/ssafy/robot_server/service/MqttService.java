@@ -37,7 +37,7 @@ public class MqttService {
 
             JsonNode json = objectMapper.readTree(payload);
 
-            if ("/robot/status".equals(topic)) {
+            if ("/sub/robot/status".equals(topic)) {
                 // 1. 상태 데이터 저장
                 RobotStatus s = RobotStatus.builder()
                         .batteryLevel(json.get("batteryLevel").asInt())
@@ -55,13 +55,13 @@ public class MqttService {
                 // (Entity를 그대로 보내거나, Map으로 가공해서 보냄)
                 messagingTemplate.convertAndSend("/sub/robot/status", s);
 
-            } else if ("/robot/pose".equals(topic)) {
+            } else if ("/sub/robot/pose".equals(topic)) {
                 RobotPose p = RobotPose.builder()
                         .x(json.get("x").asDouble())
                         .y(json.get("y").asDouble())
                         .build();
                 poseRepository.save(p);
-            } else if ("/robot/peer/offer".equals(topic)){
+            } else if ("/sub/peer/offer".equals(topic)){
                 log.info("📹 WebRTC Offer 수신 (로봇 -> 웹)");
                 messagingTemplate.convertAndSend("/sub/peer/offer", json);
             }

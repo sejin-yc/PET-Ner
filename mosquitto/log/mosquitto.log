@@ -391,3 +391,6 @@
 1768891835: New client connected from 172.18.0.1:60446 as auto-98BF503C-9FE7-345C-CC8B-A91B6213AC5F (p2, c1, k60).
 1768891904: Saving in-memory database to /mosquitto/data//mosquitto.db.
 1768891922: Client auto-98BF503C-9FE7-345C-CC8B-A91B6213AC5F closed its connection.
+1768892318: New connection from 172.18.0.1:47484 on port 1883.
+1768892318: New client connected from 172.18.0.1:47484 as auto-3D2D05AF-5BCD-917F-E08C-5E96397FB052 (p2, c1, k60).
+1768892382: Client auto-3D2D05AF-5BCD-917F-E08C-5E96397FB052 closed its connection.
