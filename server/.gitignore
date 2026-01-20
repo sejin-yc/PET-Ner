@@ -18,3 +18,8 @@ server/out/
 server/bin/
 server/target/
 !server/gradle/wrapper/gradle-wrapper.jar
+
+# --- 🦟 MQTT (Mosquitto) 데이터 (추가!) ---
+mosquitto/data/
+mosquitto/log/
+*.db

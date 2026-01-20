@@ -1,40 +1,38 @@
-# --- OS & Tool ---
+# --- 운영체제 및 에디터 설정 파일 (필요 없음) ---
 .DS_Store
 .vscode/
 .idea/
-*.swp
-Thumbs.db
-desktop.ini
 
-# --- Server (Spring Boot / Gradle) ---
+# --- 🔐 보안 파일 (절대 올리지 마세요!) ---
+*.pem
+I14C203T.pem
+.env
+.env.local
+
+# --- 🐳 Docker 관련 (데이터는 올리지 않음) ---
+postgres_data/
+nginx/ssl/
+
+# --- ☕ Server (Spring Boot) ---
 server/build/
 server/.gradle/
-server/bin/
 server/out/
+server/bin/
 server/*.log
-.gradletasknamecache
+server/.settings/
+server/.classpath
+server/.project
 
-# --- Client (React / Vite) ---
+# --- ⚛️ Client (React) ---
 client/node_modules/
 client/dist/
-client/build
-client/.env
+client/build/
 client/.env.local
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
 
-# --- Python (Robot Simulator) ---
-# 가상환경 폴더 전체 제외
+# --- 🐍 Fake Robot (Python) ---
 fake_robot/venv/
-fake_robot/.venv/
-**/__pycache__/
-*.py[cod]
-
-# --- Docker & DB Data ---
-# DB 데이터는 보안과 용량 문제로 절대 올리지 않습니다.
-mosquitto/data/
-mosquitto/log/
-postgres_data/
-
-# --- Environment & Logs ---
-*.pem
-.env
-*.log
+fake_robot/__pycache__/
+fake_robot/*.pyc

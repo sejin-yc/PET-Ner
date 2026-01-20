@@ -10,7 +10,7 @@ import Stomp from 'stompjs';
 const RobotContext = createContext();
 
 // ✅ 백엔드 주소
-const SOCKET_URL = 'ws://localhost:8080/ws';
+const SOCKET_URL = 'wss://i14c203.p.ssafy.io/ws';
 
 export const RobotProvider = ({ children }) => {
   const { user } = useAuth();
