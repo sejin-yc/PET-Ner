@@ -16,9 +16,12 @@ export const RobotProvider = ({ children }) => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const queryClient = useQueryClient();
+
+  const [client, setClient] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
   
   const stompClient = useRef(null);
-  const peerConnection = useRef(null); // ✅ WebRTC 연결 객체 추가
+  // const peerConnection = useRef(null); // ✅ WebRTC 연결 객체 추가
 
   /* 1. 로봇 상태 */
   const [robotStatus, setRobotStatus] = useState({
@@ -27,7 +30,7 @@ export const RobotProvider = ({ children }) => {
   });
   
   const [isRobotLoading, setIsRobotLoading] = useState(true);
-  const [remoteStream, setRemoteStream] = useState(null); // ✅ 수신된 영상 데이터
+  // const [remoteStream, setRemoteStream] = useState(null); // ✅ 수신된 영상 데이터
 
   /* 2. 웹소켓 및 WebRTC 연결 설정 */
   useEffect(() => {
@@ -38,9 +41,13 @@ export const RobotProvider = ({ children }) => {
 
     client.connect({}, () => {
       console.log('✅ RobotContext: 웹소켓 연결 성공!');
+      setClient(stomp);
+      setIsConnected(true);
+      stompClientRef.current = stomp;
+
       setIsRobotLoading(false);
       setRobotStatus(prev => ({ ...prev, isOnline: true }));
-      stompClient.current = client;
+      // stompClient.current = client;
 
       // (1) 로봇 상태 구독 (위치, 배터리 등)
       client.subscribe('/sub/robot/status', (message) => {
@@ -57,37 +64,37 @@ export const RobotProvider = ({ children }) => {
       });
 
       // (2) 📹 WebRTC Offer 수신 (여기가 핵심! 로봇 전화를 받는 부분)
-      client.subscribe('/sub/peer/offer', async (message) => {
-        console.log("📹 [WebRTC] Offer 수신! 연결을 시도합니다...");
-        const offer = JSON.parse(message.body);
+      // client.subscribe('/sub/peer/offer', async (message) => {
+      //   console.log("📹 [WebRTC] Offer 수신! 연결을 시도합니다...");
+      //   const offer = JSON.parse(message.body);
 
-        // P2P 연결 생성 (구글 무료 STUN 서버 사용)
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+      //   // P2P 연결 생성 (구글 무료 STUN 서버 사용)
+      //   const pc = new RTCPeerConnection({
+      //     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      //   });
 
-        // 📡 영상 트랙이 들어오면 state에 저장
-        pc.ontrack = (event) => {
-          console.log("🎥 [WebRTC] 영상 스트림 확보됨 (Stream ID: " + event.streams[0].id + ")");
-          setRemoteStream(event.streams[0]);
-        };
+      //   // 📡 영상 트랙이 들어오면 state에 저장
+      //   pc.ontrack = (event) => {
+      //     console.log("🎥 [WebRTC] 영상 스트림 확보됨 (Stream ID: " + event.streams[0].id + ")");
+      //     setRemoteStream(event.streams[0]);
+      //   };
 
-        peerConnection.current = pc;
+      //   peerConnection.current = pc;
 
-        // 로봇의 명함(Offer) 저장
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      //   // 로봇의 명함(Offer) 저장
+      //   await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
-        // 내 명함(Answer) 생성 및 저장
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
+      //   // 내 명함(Answer) 생성 및 저장
+      //   const answer = await pc.createAnswer();
+      //   await pc.setLocalDescription(answer);
 
-        // 내 명함을 로봇에게 전송
-        client.send("/pub/peer/answer", {}, JSON.stringify({
-          sdp: pc.localDescription.sdp,
-          type: pc.localDescription.type
-        }));
-        console.log("📤 [WebRTC] Answer 전송 완료!");
-      });
+      //   // 내 명함을 로봇에게 전송
+      //   client.send("/pub/peer/answer", {}, JSON.stringify({
+      //     sdp: pc.localDescription.sdp,
+      //     type: pc.localDescription.type
+      //   }));
+      //   console.log("📤 [WebRTC] Answer 전송 완료!");
+      // });
 
     }, (error) => {
       console.error('❌ 웹소켓 연결 실패:', error);
@@ -96,8 +103,8 @@ export const RobotProvider = ({ children }) => {
     });
 
     return () => {
-      if (client && client.connected) client.disconnect();
-      if (peerConnection.current) peerConnection.current.close();
+      if (stomp && stomp.connected) stomp.disconnect();
+      // if (peerConnection.current) peerConnection.current.close();
     };
   }, []);
 
@@ -168,10 +175,13 @@ export const RobotProvider = ({ children }) => {
 
   return (
     <RobotContext.Provider value={{
+      client,
+      isConnected,
+
       robotStatus, isVideoOn, toggleVideo, moveRobot, emergencyStop, toggleMode,
       sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording, trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
       videos, deleteVideo: deleteVideoMutation.mutate, addTestVideo, logs, deleteLog: deleteLogMutation.mutate, addTestLog, isRobotLoading,
-      remoteStream // ✅ 이게 있어야 Dashboard에서 갖다 씁니다!
+      // remoteStream // ✅ 이게 있어야 Dashboard에서 갖다 씁니다!
     }}>
       {children}
     </RobotContext.Provider>

@@ -411,3 +411,16 @@
 1768896454: New connection from 172.18.0.1:55380 on port 1883.
 1768896454: New client connected from 172.18.0.1:55380 as auto-730BE218-DFB1-39C5-5800-5675B4D188AD (p2, c1, k60).
 1768896489: Client auto-730BE218-DFB1-39C5-5800-5675B4D188AD closed its connection.
+1768896666: New connection from 172.18.0.1:43622 on port 1883.
+1768896666: New client connected from 172.18.0.1:43622 as auto-805F33F3-E9A2-D550-3311-B2C815CF02B5 (p2, c1, k60).
+1768896689: Client auto-805F33F3-E9A2-D550-3311-B2C815CF02B5 closed its connection.
+1768896690: New connection from 172.18.0.1:33094 on port 1883.
+1768896690: New client connected from 172.18.0.1:33094 as auto-B3B5CFB7-9B12-ACD6-E31B-C11A0D68A605 (p2, c1, k60).
+1768896706: Client auto-B3B5CFB7-9B12-ACD6-E31B-C11A0D68A605 closed its connection.
+1768896762: New connection from 172.18.0.1:42692 on port 1883.
+1768896762: New client connected from 172.18.0.1:42692 as auto-C22D0EB4-27C3-0CCB-4143-D591975B22B0 (p2, c1, k60).
+1768896786: Client auto-C22D0EB4-27C3-0CCB-4143-D591975B22B0 closed its connection.
+1768896820: New connection from 172.18.0.1:39088 on port 1883.
+1768896820: New client connected from 172.18.0.1:39088 as auto-2757FFE8-4BB6-5455-9923-3699E3A47145 (p2, c1, k60).
+1768896933: Client auto-2757FFE8-4BB6-5455-9923-3699E3A47145 closed its connection.
+1768897307: Saving in-memory database to /mosquitto/data//mosquitto.db.

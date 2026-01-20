@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useRobot } from '@/contexts/RobotContext';
+import { useRobot } from '../contexts/RobotContext'; // 경로 확인 필요 (client/src/contexts/...)
 import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, Video, VideoOff, BrainCircuit, Repeat, Hand } from 'lucide-react';
-import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
+import DashboardSkeleton from './skeletons/DashboardSkeleton'; // 경로 확인 필요
 
-// ✅ [추가] WebRTC 스트림을 실제로 재생해주는 헬퍼 컴포넌트
-// React에서는 video 태그에 srcObject를 직접 props로 줄 수 없어서, useEffect로 연결해야 합니다.
+// ✅ [1] WebRTC 스트림 재생 헬퍼 컴포넌트
 const VideoStream = ({ stream }) => {
   const videoRef = useRef(null);
 
@@ -19,31 +18,100 @@ const VideoStream = ({ stream }) => {
       ref={videoRef} 
       autoPlay 
       playsInline 
-      muted // 로봇과 같은 공간에 있으면 하울링이 생길 수 있어 음소거 처리
+      muted // 하울링 방지
       className="w-full h-full object-cover" 
     />
   );
 };
 
 const Dashboard = () => {
-  // RobotContext에서 필요한 데이터 가져오기
+  // ✅ [2] RobotContext에서 필요한 데이터 가져오기
   const { 
+    client, isConnected, // MQTT 클라이언트 및 연결 상태
     robotStatus, toggleMode, emergencyStop, moveRobot, 
     isVideoOn, toggleVideo,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
     trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
-    isRobotLoading,
-    remoteStream // ✅ [중요] WebRTC 영상 데이터 (Stream 객체)
+    isRobotLoading
   } = useRobot();
 
   const [ttsText, setTtsText] = useState("");
   const [showSkeleton, setShowSkeleton] = useState(true);
+  
+  // ✅ [3] WebRTC 관련 로컬 상태 (Dashboard 내부에서 직접 처리)
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState("대기 중...");
+  const pcRef = useRef(null);
 
   // 로딩 스켈레톤 처리
   useEffect(() => {
     const timer = setTimeout(() => setShowSkeleton(false), 1000);
     return () => clearTimeout(timer);
   }, []);
+
+  // ✅ [4] WebRTC 연결 로직 (이전에 알려드린 코드 통합)
+  useEffect(() => {
+    // 1. 영상이 꺼져있거나, MQTT가 연결 안 됐으면 실행 X
+    if (!isVideoOn || !client || !isConnected) {
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+      setRemoteStream(null);
+      setConnectionStatus("대기 중...");
+      return;
+    }
+
+    setConnectionStatus("신호 대기 중...");
+
+    // 2. PeerConnection 생성
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+    pcRef.current = pc;
+
+    // 3. 트랙 수신 시 화면에 연결
+    pc.ontrack = (event) => {
+      console.log("📹 영상 스트림 수신됨!");
+      if (event.streams && event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+        setConnectionStatus("✅ 영상 연결 성공!");
+      }
+    };
+
+    // 4. Offer 수신 및 Answer 전송 (MQTT)
+    const subscription = client.subscribe('/sub/peer/offer', async (message) => {
+      try {
+        const offer = JSON.parse(message.body);
+        console.log("📨 Offer 수신:", offer.type);
+        setConnectionStatus("연결 시도 중...");
+
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        client.publish({
+          destination: '/pub/peer/answer', // 로봇이 듣는 주소
+          body: JSON.stringify(answer)
+        });
+        console.log("📤 Answer 전송 완료");
+
+      } catch (error) {
+        console.error("WebRTC 에러:", error);
+        setConnectionStatus("연결 에러 ❌");
+      }
+    });
+
+    // cleanup
+    return () => {
+      subscription.unsubscribe();
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+    };
+  }, [isVideoOn, client, isConnected]); // 영상 켜짐 여부나 연결 상태가 바뀌면 재실행
 
   if (isRobotLoading || showSkeleton) {
     return <DashboardSkeleton />;
@@ -65,20 +133,16 @@ const Dashboard = () => {
             <span className="text-xs text-gray-400 font-normal mt-1">SLAM Map created by Robot</span>
           </div>
           <div className="relative flex-1 bg-gray-100 overflow-hidden">
-            {/* 배경 격자 무늬 */}
             <div className="absolute inset-0 opacity-20" 
                  style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
             
-            {/* 🤖 로봇 마커 (좌표 보정 적용) */}
+            {/* 로봇 마커 */}
             <div className="absolute transition-all duration-300 ease-linear transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
                  style={{ 
-                   // 파이썬 로봇은 (0,0)을 보내므로, 이를 화면 중앙(50%)으로 변환
-                   // * 2는 움직임을 더 크게 보여주기 위한 스케일 값입니다.
                    left: `${robotStatus.position.x}%`, 
                    top: `${robotStatus.position.y}%` 
                  }}>
               <div className="w-8 h-8 bg-indigo-600 rounded-full border-4 border-white shadow-xl animate-pulse relative">
-                {/* 로봇 방향 표시 (삼각형) */}
                 <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-white"></div>
               </div>
               <span className="mt-1 text-xs font-bold text-indigo-800 bg-white/80 px-2 rounded shadow-sm">My Robot</span>
@@ -98,7 +162,7 @@ const Dashboard = () => {
           <div className="aspect-video bg-black relative flex items-center justify-center group overflow-hidden">
             {isVideoOn ? (
               remoteStream ? (
-                // ✅ 영상 데이터가 있으면 재생
+                // ✅ 영상 재생 (연결 성공 시)
                 <>
                   <VideoStream stream={remoteStream} />
                   <div className="absolute top-4 left-4 flex gap-2">
@@ -107,14 +171,14 @@ const Dashboard = () => {
                   </div>
                 </>
               ) : (
-                // 영상은 켰는데 아직 연결 중일 때
+                // 연결 대기 중
                 <div className="text-gray-400 flex flex-col items-center gap-2 animate-pulse">
                    <Wifi size={32} className="text-yellow-500" />
-                   <span className="text-sm">로봇 연결 중... (신호 대기)</span>
+                   <span className="text-sm">로봇 연결 중... ({connectionStatus})</span>
                 </div>
               )
             ) : (
-              // 영상을 껐을 때
+              // 영상 끔
               <div className="text-gray-500 flex flex-col items-center gap-2">
                 <VideoOff size={32} />
                 <span className="text-sm">카메라 꺼짐</span>
@@ -136,14 +200,11 @@ const Dashboard = () => {
             </span>
           </div>
           <div className="space-y-6">
-             {/* 모드 전환 버튼 */}
              <div className="bg-gray-50 p-1 rounded-lg flex items-center relative">
                 <div className={`absolute top-1 bottom-1 w-[48%] bg-white rounded shadow-sm transition-all duration-300 ${isAuto ? 'left-1' : 'left-[51%]'}`} />
                 <button onClick={() => !isAuto && toggleMode()} className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${isAuto ? 'text-indigo-600' : 'text-gray-500'}`}><Repeat size={16}/> 자동 모드</button>
                 <button onClick={() => isAuto && toggleMode()} className={`flex-1 relative z-10 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${!isAuto ? 'text-indigo-600' : 'text-gray-500'}`}><Hand size={16}/> 수동 제어</button>
              </div>
-             
-             {/* 배터리 게이지 */}
              <div>
                <div className="flex justify-between text-sm mb-1">
                  <span className="flex items-center gap-1 text-gray-600"><Battery size={14}/> 배터리</span>
@@ -178,7 +239,6 @@ const Dashboard = () => {
         {/* 3. 음성 제어 센터 */}
         <section className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 space-y-5">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Volume2 size={18} /> 음성 제어 센터</h3>
-          {/* ... (음성 제어 UI는 기존과 동일) ... */}
           <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-bold text-indigo-900 flex items-center gap-1.5"><BrainCircuit size={16}/> 내 목소리 학습</span>
