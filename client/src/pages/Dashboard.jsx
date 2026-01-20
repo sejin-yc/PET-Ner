@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRobot } from '../contexts/RobotContext'; // 경로 확인 필요 (client/src/contexts/...)
 import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, Video, VideoOff, BrainCircuit, Repeat, Hand } from 'lucide-react';
-import DashboardSkeleton from '../compoenets/skeletons/DashboardSkeleton'; // 경로 확인 필요
+import DashboardSkeleton from '../components/skeletons/DashboardSkeleton'; // 경로 확인 필요
 
 // ✅ [1] WebRTC 스트림 재생 헬퍼 컴포넌트
 const VideoStream = ({ stream }) => {
