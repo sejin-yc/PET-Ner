@@ -12,11 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.integration.mqtt.support.MqttHeaders;
-import org.springframework.messaging.simp.SimpMessagingTemplate; // ✅ 웹소켓 통신용
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -26,48 +25,53 @@ public class MqttService {
     private final MqttGateway mqttGateway;
     private final RobotStatusRepository statusRepository;
     private final RobotPoseRepository poseRepository;
-    private final SimpMessagingTemplate messagingTemplate; // ✅ [추가] 웹으로 쏘는 확성기
+    private final SimpMessagingTemplate messagingTemplate;
     
     private final ObjectMapper objectMapper = new ObjectMapper(); 
 
     @ServiceActivator(inputChannel = "mqttInputChannel")
     public void handleMessage(String payload, @Header(MqttHeaders.RECEIVED_TOPIC) String topic) {
         try {
-            // log.info("📩 MQTT 수신 [{}]: {}", topic, payload); (로그 너무 많으면 주석 처리)
-
             JsonNode json = objectMapper.readTree(payload);
 
+            // 1. 로봇 상태 수신
             if ("/sub/robot/status".equals(topic)) {
-                // 1. 상태 데이터 저장
                 RobotStatus s = RobotStatus.builder()
-                        .batteryLevel(json.get("batteryLevel").asInt(0))
-                        .temperature(json.get("temperature").asDouble(0.0))
-                        .isCharging(json.get("isCharging").asBoolean(false))
-                        // 시뮬레이터가 보낸 좌표도 같이 저장 (엔티티에 필드가 있다면)
-                        .x(json.has("x") ? json.get("x").asDouble() : 0.0)
-                        .y(json.has("y") ? json.get("y").asDouble() : 0.0)
-                        .mode(json.has("mode") ? json.get("mode").asText() : "unknown")
+                        .batteryLevel(json.path("batteryLevel").asInt(0))
+                        .temperature(json.path("temperature").asDouble(0.0))
+                        .isCharging(json.path("isCharging").asBoolean(false))
+                        .x(json.path("x").asDouble(0.0))
+                        .y(json.path("y").asDouble(0.0))
+                        .mode(json.path("mode").asText("unknown"))
+                        .timestamp(LocalDateTime.now())
                         .build();
                 
-                statusRepository.save(s); // DB 저장
-
-                // 2. ✅ [추가] 웹 클라이언트들에게 실시간 전송!
-                // (Entity를 그대로 보내거나, Map으로 가공해서 보냄)
+                statusRepository.save(s);
                 messagingTemplate.convertAndSend("/sub/robot/status", s);
 
+            // 2. 로봇 위치(좌표) 수신
             } else if ("/sub/robot/pose".equals(topic)) {
                 RobotPose p = RobotPose.builder()
-                        .x(json.get("x").asDouble())
-                        .y(json.get("y").asDouble())
+                        .x(json.path("x").asDouble(0.0))
+                        .y(json.path("y").asDouble(0.0))
+                        .theta(json.path("theta").asDouble(0.0)) // ✅ 각도 추가
                         .build();
                 poseRepository.save(p);
+                // (선택사항) 지도 실시간 갱신을 원하면 웹소켓 추가 가능
+                messagingTemplate.convertAndSend("/sub/robot/pose", p);
+
+            // 3. WebRTC 관련 (로봇 -> 웹)
             } else if ("/sub/peer/offer".equals(topic)){
                 log.info("📹 WebRTC Offer 수신 (로봇 -> 웹)");
-                messagingTemplate.convertAndSend("/sub/peer/offer", json);
+                messagingTemplate.convertAndSend("/sub/peer/offer", payload); // 원본 JSON 전달
+
+            } else if ("/sub/peer/ice".equals(topic)) { // ✅ [중요] ICE Candidate 추가
+                log.info("❄️ WebRTC ICE Candidate 수신 (로봇 -> 웹)");
+                messagingTemplate.convertAndSend("/sub/peer/ice", payload);
             }
 
         } catch (Exception e) {
-            log.error("❌ 처리 실패: {}", e.getMessage());
+            log.error("❌ MQTT 처리 에러: {}", e.getMessage());
         }
     }
 

@@ -21,8 +21,8 @@ import SettingsPage from '@/pages/SettingsPage';
 
 // 보호된 라우트 (로그인 안 하면 튕겨내기)
 const ProtectedRoute = ({ children }) => {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <div className="h-screen flex items-center justify-center">로딩 중...</div>;
+  const { user, loading } = useAuth();
+  if (loading) return <div className="h-screen flex items-center justify-center">로딩 중...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 };

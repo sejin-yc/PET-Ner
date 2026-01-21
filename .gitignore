@@ -1,29 +1,40 @@
-# --- 운영체제 및 에디터 설정 파일 (필요 없음) ---
+# === 🖥️ OS 및 IDE 설정 ===
 .DS_Store
+Thumb.db
 .vscode/
 .idea/
+*.swp
+*.log
 
-# --- 🔐 보안 파일 (절대 올리지 마세요!) ---
+# === 🔐 보안 및 환경 변수 (절대 금지!) ===
 *.pem
 I14C203T.pem
 .env
 .env.local
+.env.*.local
 
-# --- 🐳 Docker 관련 (데이터는 올리지 않음) ---
+# === 🐳 Docker 및 인프라 ===
 postgres_data/
 nginx/ssl/
+# MQTT 데이터 및 로그
+mosquitto/data/
+mosquitto/log/
+*.db
 
-# --- ☕ Server (Spring Boot) ---
-server/build/
+# === ☕ Backend (Spring Boot) ===
 server/.gradle/
+server/build/
 server/out/
 server/bin/
-server/*.log
 server/.settings/
 server/.classpath
 server/.project
+server/.factorypath
+server/HELP.md
+# 민감한 정보가 포함된 설정 파일을 무시하고 싶을 때 주석 해제
+# server/src/main/resources/application-prod.yml
 
-# --- ⚛️ Client (React) ---
+# === ⚛️ Frontend (React) ===
 client/node_modules/
 client/dist/
 client/build/
@@ -32,7 +43,10 @@ client/npm-debug.log*
 client/yarn-debug.log*
 client/yarn-error.log*
 
-# --- 🐍 Fake Robot (Python) ---
+# === 🐍 Fake Robot (Python) ===
 fake_robot/venv/
+fake_robot/.venv/
+fake_robot/env/
 fake_robot/__pycache__/
 fake_robot/*.pyc
+fake_robot/.pytest_cache/

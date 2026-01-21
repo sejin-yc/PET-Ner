@@ -2,40 +2,45 @@ package com.ssafy.robot_server.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp; // ✅ 이거 추가
 import java.time.LocalDateTime;
 
 @Entity
 @Getter @Setter
-@Builder              // ✅ MqttService 에러 해결 (Builder 패턴 추가)
-@NoArgsConstructor    // ✅ JPA 필수
-@AllArgsConstructor   // ✅ Builder 사용 시 필수
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "robot_status") // ✅ 테이블 이름 명시 권장
 public class RobotStatus {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private Long userId;
 
-    // ✅ MqttService에서 사용하는 필드명으로 통일
-    private Integer batteryLevel; // (기존 battery -> batteryLevel 변경)
+    // ✅ MqttService 필드 (배터리, 온도, 충전여부)
+    private Integer batteryLevel;
     private Double temperature;
     private Boolean isCharging;
 
-    // ✅ RobotController (시뮬레이터)에서 사용하는 필드
+    // ✅ RobotController 시뮬레이터 필드 (좌표, 모드)
     private Double x;
     private Double y;
     private String mode;
     
+    // ✅ [수정] 누가, 어떻게 저장하든 자동으로 현재 시간이 찍히도록 설정
+    @CreationTimestamp
+    @Column(updatable = false)
     private LocalDateTime timestamp;
 
-    // ✅ RobotController와의 호환성을 위한 생성자
-    // (시뮬레이터는 temperature, isCharging 정보가 없으므로 null 처리)
+    // ✅ 호환성 생성자 (유지)
     public RobotStatus(Double battery, Double x, Double y, String mode) {
-        this.batteryLevel = (battery != null) ? battery.intValue() : 0; // Double -> Integer 변환
+        this.batteryLevel = (battery != null) ? battery.intValue() : 0;
         this.x = x;
         this.y = y;
         this.mode = mode;
-        this.temperature = 0.0; // 기본값
-        this.isCharging = false; // 기본값
-        this.timestamp = LocalDateTime.now();
+        this.temperature = 0.0;
+        this.isCharging = false;
+        // this.timestamp = LocalDateTime.now(); // @CreationTimestamp가 있으므로 제거해도 됨
     }
 }

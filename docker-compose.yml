@@ -1,4 +1,5 @@
 services:
+  # 1. Database: PostgreSQL
   robot_db:
     image: postgres:15
     container_name: robot_db
@@ -10,9 +11,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      # 👇 [수정됨] 앞에 './'를 붙여서 "내 눈에 보이는 폴더"에 저장하도록 변경
       - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - robot_network
 
+  # 2. MQTT Broker: Mosquitto
   robot_mqtt:
     image: eclipse-mosquitto:2.0
     container_name: robot_mqtt
@@ -20,12 +23,29 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      # 여기도 상대 경로(./)가 잘 되어 있으니 유지합니다.
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
     restart: always
+    networks:
+      - robot_network
 
-# 👇 [삭제] 맨 아래 이 부분은 이제 필요 없으니 지우세요!
-# volumes:
-#   postgres_data:
+  # 3. Backend: Spring Boot (선택 사항)
+  # 만약 서버도 도커로 띄우고 싶다면 아래 주석을 해제하세요.
+  # robot_server:
+  #   build: ./server
+  #   container_name: robot_server
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - robot_db
+  #     - robot_mqtt
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://robot_db:5432/robot_db
+  #     MQTT_BROKER_URL: tcp://robot_mqtt:1883
+  #   networks:
+  #     - robot_network
+
+networks:
+  robot_network:
+    driver: bridge

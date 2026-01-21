@@ -7,7 +7,7 @@ import {
 import { Clock, AlertTriangle } from 'lucide-react';
 
 const LogCharts = () => {
-  const { logs } = useRobot(); // ✅ 저장된 로그 목록 가져오기
+  const { logs = [] } = useRobot(); // ✅ 저장된 로그 목록 가져오기
 
   // 📊 로그 데이터를 요일별 통계로 변환하는 함수
   const chartData = useMemo(() => {

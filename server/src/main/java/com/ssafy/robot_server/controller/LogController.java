@@ -37,6 +37,8 @@ public class LogController {
             return ResponseEntity.badRequest().body("userId는 필수입니다.");
         }
 
+        log.setId(null);
+
         // 시간 자동 설정 (Entity에 @CreationTimestamp가 없다면 여기서 설정)
         if (log.getCreatedAt() == null) {
             log.setCreatedAt(LocalDateTime.now());

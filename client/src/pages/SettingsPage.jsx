@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom'; // 회원탈퇴 후 이동용
-import api from '@/api/axios'; // 회원탈퇴용 API 직접 호출
+import api from '../api/axios'; // 회원탈퇴용 API 직접 호출
 import { toast } from 'sonner';
 import { User, Lock, Camera, LogOut, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 

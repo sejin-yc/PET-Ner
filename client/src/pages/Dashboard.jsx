@@ -1,35 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useRobot } from '../contexts/RobotContext'; // 경로 확인 필요 (client/src/contexts/...)
-import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, Video, VideoOff, BrainCircuit, Repeat, Hand } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useRobot } from '../contexts/RobotContext';
+import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton'; // 경로 확인 필요
-
-// ✅ [1] WebRTC 스트림 재생 헬퍼 컴포넌트
-const VideoStream = ({ stream }) => {
-  const videoRef = useRef(null);
-
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  return (
-    <video 
-      ref={videoRef} 
-      autoPlay 
-      playsInline 
-      muted // 하울링 방지
-      className="w-full h-full object-cover" 
-    />
-  );
-};
+import StreamPanel from '../components/dashboard/StreamPanel'; // ✅ 우리가 만든 완벽한 영상 패널 가져오기
 
 const Dashboard = () => {
-  // ✅ [2] RobotContext에서 필요한 데이터 가져오기
   const { 
-    client, isConnected, // MQTT 클라이언트 및 연결 상태
     robotStatus, toggleMode, emergencyStop, moveRobot, 
-    isVideoOn, toggleVideo,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
     trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
     isRobotLoading
@@ -38,80 +15,11 @@ const Dashboard = () => {
   const [ttsText, setTtsText] = useState("");
   const [showSkeleton, setShowSkeleton] = useState(true);
   
-  // ✅ [3] WebRTC 관련 로컬 상태 (Dashboard 내부에서 직접 처리)
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState("대기 중...");
-  const pcRef = useRef(null);
-
   // 로딩 스켈레톤 처리
   useEffect(() => {
     const timer = setTimeout(() => setShowSkeleton(false), 1000);
     return () => clearTimeout(timer);
   }, []);
-
-  // ✅ [4] WebRTC 연결 로직 (이전에 알려드린 코드 통합)
-  useEffect(() => {
-    // 1. 영상이 꺼져있거나, MQTT가 연결 안 됐으면 실행 X
-    if (!isVideoOn || !client || !isConnected) {
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-      }
-      setRemoteStream(null);
-      setConnectionStatus("대기 중...");
-      return;
-    }
-
-    setConnectionStatus("신호 대기 중...");
-
-    // 2. PeerConnection 생성
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
-    pcRef.current = pc;
-
-    // 3. 트랙 수신 시 화면에 연결
-    pc.ontrack = (event) => {
-      console.log("📹 영상 스트림 수신됨!");
-      if (event.streams && event.streams[0]) {
-        setRemoteStream(event.streams[0]);
-        setConnectionStatus("✅ 영상 연결 성공!");
-      }
-    };
-
-    // 4. Offer 수신 및 Answer 전송 (MQTT)
-    const subscription = client.subscribe('/sub/peer/offer', async (message) => {
-      try {
-        const offer = JSON.parse(message.body);
-        console.log("📨 Offer 수신:", offer.type);
-        setConnectionStatus("연결 시도 중...");
-
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        client.publish({
-          destination: '/pub/peer/answer', // 로봇이 듣는 주소
-          body: JSON.stringify(answer)
-        });
-        console.log("📤 Answer 전송 완료");
-
-      } catch (error) {
-        console.error("WebRTC 에러:", error);
-        setConnectionStatus("연결 에러 ❌");
-      }
-    });
-
-    // cleanup
-    return () => {
-      subscription.unsubscribe();
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-      }
-    };
-  }, [isVideoOn, client, isConnected]); // 영상 켜짐 여부나 연결 상태가 바뀌면 재실행
 
   if (isRobotLoading || showSkeleton) {
     return <DashboardSkeleton />;
@@ -150,41 +58,10 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* 2. 실시간 영상 (WebRTC) */}
-        <section className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-          <div className="px-4 py-3 border-b border-gray-100 font-semibold text-gray-800 flex justify-between items-center">
-            <span>실시간 카메라 (WebRTC)</span>
-            <button onClick={toggleVideo} className={`text-xs px-2 py-1 rounded flex items-center gap-1 border transition-colors ${isVideoOn ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}>
-              {isVideoOn ? <><VideoOff size={12}/> 영상 종료</> : <><Video size={12}/> 영상 연결</>}
-            </button>
-          </div>
-          
-          <div className="aspect-video bg-black relative flex items-center justify-center group overflow-hidden">
-            {isVideoOn ? (
-              remoteStream ? (
-                // ✅ 영상 재생 (연결 성공 시)
-                <>
-                  <VideoStream stream={remoteStream} />
-                  <div className="absolute top-4 left-4 flex gap-2">
-                    <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded animate-pulse">LIVE</span>
-                    <span className="bg-black/50 text-white text-[10px] px-2 py-0.5 rounded">P2P Connected</span>
-                  </div>
-                </>
-              ) : (
-                // 연결 대기 중
-                <div className="text-gray-400 flex flex-col items-center gap-2 animate-pulse">
-                   <Wifi size={32} className="text-yellow-500" />
-                   <span className="text-sm">로봇 연결 중... ({connectionStatus})</span>
-                </div>
-              )
-            ) : (
-              // 영상 끔
-              <div className="text-gray-500 flex flex-col items-center gap-2">
-                <VideoOff size={32} />
-                <span className="text-sm">카메라 꺼짐</span>
-              </div>
-            )}
-          </div>
+        {/* 2. ✅ 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
+        <section className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm h-[400px]">
+          {/* StreamPanel 안에 모든 영상/WebRTC 로직이 들어있습니다 */}
+          <StreamPanel />
         </section>
       </div>
 

@@ -1,30 +1,34 @@
+server:
+  port: 8080 # 서버 포트 번호
+
 spring:
   datasource:
-    # ✅ PostgreSQL 주소 (포트 5432 확인)
+    # 도커 환경이 아니면 robot_db를 localhost로 수정하세요!
     url: jdbc:postgresql://robot_db:5432/robot_db
-    # ✅ 설치할 때 설정한 아이디/비밀번호 입력 필수!
     username: admin
     password: admin
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      # 🚨 중요: create는 매번 지우고 다시 만듦. update는 데이터 유지함!
+      # update: 테이블 유지 및 변경사항 반영
+      # create: 매번 테이블 삭제 후 재생성 (주의!)
       ddl-auto: update 
+    show-sql: true # ✅ 콘솔에 SQL 문 출력
     properties:
       hibernate:
-        format_sql: true
-        # PostgreSQL 방언 설정
+        format_sql: true # SQL 예쁘게 출력
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        # 쿼리에 주석 포함하여 디버깅 용이하게 설정
+        use_sql_comments: true 
 
-# JWT 설정 (유지)
+# JWT 설정 (보안을 위해 비밀키는 32자 이상의 긴 문자열 유지)
 jwt:
   secret: ThisIsASecretKeyForRobotProjectMustBeVeryLongToWorkCorrectly123456
 
-# MQTT 설정 (유지 - 만약 MQTT 브로커가 안 켜져 있으면 에러가 날 수 있음)
-# 당장 MQTT를 안 쓴다면 이 부분 때문에 서버가 꺼질 수도 있으니, 
-# 서버가 안 켜지면 mqtt 부분을 주석 처리(#) 해보세요.
+# MQTT 설정
+# 브로커가 실행 중이 아니면 서버 기동 시 에러가 날 수 있습니다.
 mqtt:
-  broker-url: tcp://mqtt_broker:1883
+  broker-url: tcp://mqtt_broker:1883 # 도커 환경이 아니면 localhost로 수정
   client-id: spring-boot-server
-  default-topic: "#"
+  default-topic: "robot/#" # 필요한 토픽 범위로 한정하는 것이 효율적

@@ -5,9 +5,11 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource; // ✅ 추가
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,35 +18,31 @@ import java.io.IOException;
 import java.util.Collections;
 
 @Component
+@RequiredArgsConstructor // ✅ 생성자 주입 자동화
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, UserRepository userRepository) {
-        this.tokenProvider = tokenProvider;
-        this.userRepository = userRepository;
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
-        // 1. 요청 헤더에서 토큰 꺼내기
         String token = parseBearerToken(request);
 
-        // 2. 토큰이 있고 유효하다면 인증 처리
         if (token != null && tokenProvider.validateToken(token)) {
             String email = tokenProvider.getEmailFromToken(token);
             
-            // DB에서 유저 확인 (UserDetails 생성)
             userRepository.findByEmail(email).ifPresent(user -> {
                 UserDetails userDetails = new org.springframework.security.core.userdetails.User(
                         user.getEmail(), user.getPassword(), Collections.emptyList());
                 
-                // 스프링 시큐리티에 "이 사람 로그인 됐음" 도장 찍기
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                
+                // ✅ [추가] 현재 요청의 상세 정보(IP, 세션 등)를 설정
+                // 나중에 로그를 확인할 때 어떤 IP에서 온 요청인지 추적하기 쉬워집니다.
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             });

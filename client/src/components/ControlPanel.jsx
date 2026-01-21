@@ -1,79 +1,59 @@
-import React, { useRef } from 'react'; // useRef 추가
+import React, { useRef } from 'react';
 import { Joystick } from 'react-joystick-component';
-import { useRobot } from '../contexts/RobotContext'; // ✅ Context 가져오기
+import { useRobot } from '../../contexts/RobotContext'; // 경로 확인 필요
+import { Gamepad2 } from 'lucide-react'; // 아이콘 추가
 
 const ControlPanel = () => {
-  // ✅ RobotContext에서 moveRobot 함수 가져오기
   const { moveRobot } = useRobot();
-  
-  // ⚡ 전송 속도 제한용 (너무 많은 데이터 전송 방지)
   const lastSentTime = useRef(0);
 
   const handleMove = (event) => {
-    // 1. 0.1초(100ms) 간격으로만 전송 (서버 과부하 방지)
+    // 0.1초 간격 전송 제한 (서버 부하 방지)
     const now = Date.now();
     if (now - lastSentTime.current < 100) return;
     lastSentTime.current = now;
 
-    // 2. 조이스틱 데이터 변환
-    // event.y: 앞(+), 뒤(-) / event.x: 우(+), 좌(-)
-    // 로봇마다 회전 방향이 다를 수 있으니 움직여보고 - 부호를 조정하세요.
+    // 조이스틱 데이터 변환
     const linear = event.y || 0;
-    const angular = -event.x || 0; // 좌우 반전 필요 시 - 붙임
+    const angular = -event.x || 0; // 좌우 반전
 
-    // 3. 웹소켓으로 전송 (axios 대신 사용!)
     moveRobot(linear, angular);
-    
-    // 로그는 너무 많이 찍히니 개발할 때만 주석 해제
-    // console.log(`🚀 Move: Linear=${linear.toFixed(2)}, Angular=${angular.toFixed(2)}`);
   };
 
   const handleStop = () => {
-    // 멈출 때는 즉시 전송
     moveRobot(0, 0);
-    console.log("🛑 Stop command sent");
+    // console.log("🛑 Stop command sent");
   };
 
   return (
-    <div style={styles.card}>
-      <h3>🕹️ Manual Control</h3>
-      <div style={styles.joystickWrapper}>
-        <Joystick 
-          size={120} 
-          sticky={false} 
-          baseColor="#444" 
-          stickColor="#888" 
-          move={handleMove} 
-          stop={handleStop}
-          throttle={100} // 라이브러리 자체 스로틀링 옵션도 활용
-        />
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center w-full h-full">
+      {/* 헤더 */}
+      <div className="w-full flex items-center gap-2 mb-6">
+        <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+          <Gamepad2 size={20} />
+        </div>
+        <h3 className="font-bold text-gray-800">수동 제어</h3>
       </div>
-      <p style={{fontSize: '0.8rem', color: '#aaa', marginTop: '10px'}}>
-        Use joystick to move robot
-      </p>
+
+      {/* 조이스틱 영역 */}
+      <div className="flex-1 flex flex-col justify-center items-center gap-4">
+        <div className="p-4 bg-gray-50 rounded-full border border-gray-100 shadow-inner">
+          <Joystick 
+            size={120} 
+            sticky={false} 
+            baseColor="#e5e7eb" // 회색 (Tailwind gray-200)
+            stickColor="#6366f1" // 인디고 (Tailwind indigo-500)
+            move={handleMove} 
+            stop={handleStop}
+            throttle={100} 
+          />
+        </div>
+        <p className="text-xs text-gray-400 font-medium">
+          조이스틱을 드래그하여 이동
+        </p>
+      </div>
     </div>
   );
-};
-
-const styles = {
-  card: {
-    backgroundColor: '#333',
-    padding: '20px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: '400px',
-    color: 'white', // 글자색 추가
-  },
-  joystickWrapper: {
-    marginTop: '10px',
-    padding: '10px',
-    background: '#222',
-    borderRadius: '50%'
-  }
 };
 
 export default ControlPanel;

@@ -14,7 +14,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/videos")
 @RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
-@Tag(name = "4. 영상 관리", description = "특이행동/사건사고 영상 API")
+@Tag(name = "5. 영상 관리", description = "특이행동/사건사고 영상 API")
 public class VideoController {
 
     private final VideoRepository videoRepository; // ✅ final 선언
@@ -39,6 +39,8 @@ public class VideoController {
         if (video.getUrl() == null || video.getUrl().isEmpty()) {
             return ResponseEntity.badRequest().body("영상 URL은 필수입니다.");
         }
+
+        video.setId(null);
 
         // 생성 시간 자동 설정 (없을 경우)
         if (video.getCreatedAt() == null) {

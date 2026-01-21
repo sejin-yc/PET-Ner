@@ -35,6 +35,8 @@ public class CatController {
             return ResponseEntity.badRequest().body("userId(사용자 ID)는 필수입니다.");
         }
 
+        cat.setId(null);
+
         // 기본값 방어 로직
         if (cat.getHealthStatus() == null) cat.setHealthStatus("normal");
         if (cat.getBehaviorStatus() == null) cat.setBehaviorStatus("대기 중");
