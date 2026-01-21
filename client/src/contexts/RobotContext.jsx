@@ -36,21 +36,21 @@ export const RobotProvider = ({ children }) => {
   useEffect(() => {
     // const socket = new SockJS(SOCKET_URL);
     const socket = new WebSocket(SOCKET_URL);
-    const client = Stomp.over(socket);
-    client.debug = null;
+    const mqttClient = Stomp.over(socket);
+    mqttClient.debug = null;
 
-    client.connect({}, () => {
+    mqttClient.connect({}, () => {
       console.log('✅ RobotContext: 웹소켓 연결 성공!');
-      setClient(stomp);
+      setClient(mqttClient);
       setIsConnected(true);
-      stompClientRef.current = stomp;
+      stompClient.current = mqttClient;
 
       setIsRobotLoading(false);
       setRobotStatus(prev => ({ ...prev, isOnline: true }));
       // stompClient.current = client;
 
       // (1) 로봇 상태 구독 (위치, 배터리 등)
-      client.subscribe('/sub/robot/status', (message) => {
+      mqttClient.subscribe('/sub/robot/status', (message) => {
         const data = JSON.parse(message.body);
         setRobotStatus(prev => ({
           ...prev,
@@ -99,11 +99,12 @@ export const RobotProvider = ({ children }) => {
     }, (error) => {
       console.error('❌ 웹소켓 연결 실패:', error);
       setIsRobotLoading(false);
+      setIsConnected(false);
       setRobotStatus(prev => ({ ...prev, isOnline: false }));
     });
 
     return () => {
-      if (stomp && stomp.connected) stomp.disconnect();
+      if (mqttClient && mqttClient.connected) mqttClient.disconnect();
       // if (peerConnection.current) peerConnection.current.close();
     };
   }, []);
