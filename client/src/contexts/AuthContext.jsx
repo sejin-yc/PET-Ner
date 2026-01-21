@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
       
       // const { token, user: userData } = response.data;
       const rawToken = response.data.token;
-      const pureToken = rawToken.startWith('Bearer ') ? rawToken.slice(7) : rawToken;
+      const pureToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
       
       // 토큰 저장
       localStorage.setItem('token', pureToken);
