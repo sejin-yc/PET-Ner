@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useRobot } from '../../contexts/RobotContext';
+import { useRobot } from '../contexts/RobotContext';
 import { Video, WifiOff } from 'lucide-react'; // 아이콘 추가
 
 const StreamPanel = () => {

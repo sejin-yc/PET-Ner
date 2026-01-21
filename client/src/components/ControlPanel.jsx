@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Joystick } from 'react-joystick-component';
-import { useRobot } from '../../contexts/RobotContext'; // 경로 확인 필요
+import { useRobot } from '../contexts/RobotContext'; // 경로 확인 필요
 import { Gamepad2 } from 'lucide-react'; // 아이콘 추가
 
 const ControlPanel = () => {
