@@ -3,10 +3,14 @@ package com.ssafy.robot_server.config;
 import com.ssafy.robot_server.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // ✅ 필수
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager; // ✅ 추가
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration; // ✅ 추가
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder; // ✅ 추가
+import org.springframework.security.crypto.password.PasswordEncoder; // ✅ 추가
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -26,6 +30,16 @@ public class SecurityConfig {
     }
 
     @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource())) // CORS 설정 적용
@@ -35,6 +49,8 @@ public class SecurityConfig {
                 // ✅ 1. 회원가입과 로그인은 무조건 허용 (토큰 검사 X)
                 .requestMatchers(HttpMethod.POST, "/api/users/**", "/users/**").permitAll()
                 
+                .requestMatchers("/api/users/login").permitAll()
+
                 // ✅ 2. 스웨거(Swagger) 문서도 허용
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
