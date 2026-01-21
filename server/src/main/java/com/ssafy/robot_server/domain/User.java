@@ -30,12 +30,11 @@ public class User {
     @Email(message = "이메일 형식이 올바르지 않습니다.")
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     @NotBlank(message = "비밀번호는 필수 입력 값입니다.")
     // 🚨 주의: DB에는 암호화된(긴) 비밀번호가 저장되므로, 
     // @Size 검사는 보통 회원가입 요청 DTO에서 하는 게 더 정확하지만, 
     // 엔티티에 두어도 @PrePersist 등으로 막지 않는 한 큰 문제는 없습니다.
-    @Size(min = 6, message = "비밀번호는 최소 6자 이상이어야 합니다.")
     private String password;
 
     // ✅ (선택 사항) 권한 구분용 필드
