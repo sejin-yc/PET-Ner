@@ -28,16 +28,16 @@ export const AuthProvider = ({ children }) => {
       // ✅ api 대신 axios 사용 (옛날 토큰 간섭 방지)
       const response = await axios.post(`${BASE_URL}/users/login`, { email, password });
       
-      // const { token, user: userData } = response.data;
+      const { token, user: userData } = response.data;
       const rawToken = response.data.token;
       const pureToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
       
       // 토큰 저장
       localStorage.setItem('token', pureToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
       
-      toast.success(`${userData.name}님 환영합니다!`);
+      toast.success(`${user.name}님 환영합니다!`);
       return true;
     } catch (error) {
       console.error("로그인 에러:", error);
