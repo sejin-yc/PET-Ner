@@ -33,12 +33,15 @@ export const RobotProvider = ({ children }) => {
 
   /* 2. MQTT 및 WebRTC 연결 설정 */
   useEffect(() => {
+    // 중복 연결 방지
+    if (mqttClientRef.current) return;
+
     console.log("🔌 MQTT 연결 시도:", MQTT_URL);
 
     // (1) MQTT 연결 생성
     const mClient = mqtt.connect(MQTT_URL, {
       clean: true,
-      reconnectPeriod: 1000, // 끊기면 1초마다 재연결 시도
+      reconnectPeriod: 1000, 
     });
 
     mClient.on('connect', () => {
@@ -47,9 +50,10 @@ export const RobotProvider = ({ children }) => {
       setIsRobotLoading(false);
       setRobotStatus(prev => ({ ...prev, isOnline: true }));
       
-      // 토픽 구독
+      // 📡 토픽 구독 (콜백 함수 없이 토픽만 넣어야 함!)
       mClient.subscribe(['/sub/robot/status', '/sub/peer/offer'], (err) => {
         if (!err) console.log("📡 토픽 구독 완료");
+        else console.error("❌ 구독 실패:", err);
       });
     });
 
@@ -58,26 +62,30 @@ export const RobotProvider = ({ children }) => {
       setIsConnected(false);
     });
 
-    // (2) 메시지 수신 처리 (로봇 상태 + WebRTC)
+    // 📩 메시지 수신 통합 처리 (여기서 message.body가 아니라 그냥 message를 씁니다)
     mClient.on('message', async (topic, message) => {
-      const payload = JSON.parse(message.toString());
+      try {
+        const payload = JSON.parse(message.toString()); // Buffer -> String -> JSON
 
-      // A. 로봇 상태 데이터 수신
-      if (topic === '/sub/robot/status') {
-        setRobotStatus(prev => ({
-          ...prev,
-          isOnline: true,
-          battery: payload.batteryLevel !== undefined ? payload.batteryLevel : prev.battery,
-          position: (payload.x !== undefined && payload.y !== undefined) ? { x: payload.x, y: payload.y } : prev.position,
-          mode: payload.mode || prev.mode,
-          lastUpdate: new Date().toISOString()
-        }));
-      }
+        // A. 로봇 상태 데이터 수신
+        if (topic === '/sub/robot/status') {
+          setRobotStatus(prev => ({
+            ...prev,
+            isOnline: true,
+            battery: payload.batteryLevel !== undefined ? payload.batteryLevel : prev.battery,
+            position: (payload.x !== undefined && payload.y !== undefined) ? { x: payload.x, y: payload.y } : prev.position,
+            mode: payload.mode || prev.mode,
+            lastUpdate: new Date().toISOString()
+          }));
+        }
 
-      // B. 📹 WebRTC Offer 수신 (영상 연결 요청)
-      if (topic === '/sub/peer/offer') {
-        console.log("📹 [WebRTC] Offer 받음! 연결 시작...");
-        handleWebRTCOffer(payload, mClient);
+        // B. 📹 WebRTC Offer 수신 (영상 연결 요청)
+        if (topic === '/sub/peer/offer') {
+          console.log("📹 [WebRTC] Offer 받음! 연결 시작...");
+          handleWebRTCOffer(payload, mClient);
+        }
+      } catch (e) {
+        console.error("메시지 파싱 에러:", e);
       }
     });
 
@@ -85,16 +93,20 @@ export const RobotProvider = ({ children }) => {
     mqttClientRef.current = mClient;
 
     return () => {
-      if (mClient) mClient.end();
+      if (mClient) {
+        console.log("🔌 MQTT 연결 종료");
+        mClient.end();
+      }
       if (peerConnection.current) peerConnection.current.close();
+      mqttClientRef.current = null;
     };
-  }, []);
+  }, []); // 의존성 배열 비움
 
   // ✅ WebRTC 핸들러 함수 (Offer 처리)
   const handleWebRTCOffer = async (offer, mClient) => {
     try {
       if (peerConnection.current) {
-        peerConnection.current.close(); // 기존 연결이 있으면 닫음
+        peerConnection.current.close(); 
       }
 
       // 1. PeerConnection 생성
@@ -105,29 +117,23 @@ export const RobotProvider = ({ children }) => {
       // 2. 트랙(영상) 수신 이벤트 핸들러
       pc.ontrack = (event) => {
         console.log("🎥 영상 스트림 수신 성공! Stream ID:", event.streams[0].id);
-        setRemoteStream(event.streams[0]); // 상태 업데이트 -> 화면에 표시됨
-      };
-
-      // 3. ICE Candidate 처리 (필요시 구현, 현재는 Offer/Answer에 포함됨)
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          // console.log("🧊 ICE Candidate 발견 (전송 생략)");
-        }
+        setRemoteStream(event.streams[0]); 
       };
 
       peerConnection.current = pc;
 
-      // 4. Offer 적용 및 Answer 생성
+      // 3. Offer 적용 및 Answer 생성
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      // 5. Answer 전송 (로봇에게)
+      // 4. Answer 전송
       const answerPayload = {
         sdp: pc.localDescription.sdp,
         type: pc.localDescription.type
       };
       
+      // STOMP가 아니므로 headers 없이( {}, ) 바로 보냅니다.
       mClient.publish('/pub/peer/answer', JSON.stringify(answerPayload));
       console.log("📤 [WebRTC] Answer 전송 완료!");
 
@@ -151,7 +157,8 @@ export const RobotProvider = ({ children }) => {
   const moveRobot = (linear, angular) => {
     if (!mqttClientRef.current || !mqttClientRef.current.connected) return;
     if (robotStatus.mode === 'auto') return;
-    // publish 사용
+    
+    // ✅ publish 사용 (send 아님)
     mqttClientRef.current.publish("/pub/robot/control", JSON.stringify({ type: 'MOVE', linear, angular }));
   };
 
@@ -205,7 +212,7 @@ export const RobotProvider = ({ children }) => {
     <RobotContext.Provider value={{
       client,
       isConnected,
-      remoteStream, // ✅ 대시보드에서 영상 띄우기 위해 필수!
+      remoteStream, // ✅ 대시보드에서 영상 띄우기 위해 필수
 
       robotStatus, isVideoOn, toggleVideo, moveRobot, emergencyStop, toggleMode,
       sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording, trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
