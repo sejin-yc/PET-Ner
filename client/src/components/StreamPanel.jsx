@@ -1,114 +1,73 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRobot } from '../contexts/RobotContext';
-import { Video, WifiOff } from 'lucide-react'; // 아이콘 추가
+import { Video, WifiOff, Activity } from 'lucide-react';
 
 const StreamPanel = () => {
-  const { client, isConnected } = useRobot();
+  // ✅ RobotContext에서 이미 만들어진 영상(remoteStream)을 가져옵니다.
+  // 복잡한 연결 로직은 Context가 다 처리해줍니다.
+  const { remoteStream, isConnected } = useRobot();
   const videoRef = useRef(null);
-  const pcRef = useRef(null);
-  const [status, setStatus] = useState("서버 연결 대기 중...");
 
   useEffect(() => {
-    if (!client || !isConnected) return;
+    // remoteStream(영상 데이터)이 들어오면 비디오 태그에 연결
+    if (videoRef.current && remoteStream) {
+      console.log("📺 StreamPanel: 영상 연결됨");
+      videoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
-    setStatus("WebRTC 준비 중...");
-
-    // 1. PeerConnection 생성 (STUN 서버 필수)
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" } // 구글 무료 STUN
-      ]
-    });
-    pcRef.current = pc;
-
-    // 2. [중요] 내 네트워크 정보(ICE Candidate)를 찾으면 로봇에게 보냄
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        client.publish({
-          destination: '/pub/peer/ice', // 🚨 백엔드 Controller 확인 필요
-          body: JSON.stringify(event.candidate)
-        });
-      }
-    };
-
-    // 3. 영상 트랙 수신 시 화면 연결
-    pc.ontrack = (event) => {
-      console.log("📹 영상 스트림 수신됨!");
-      if (videoRef.current) {
-        videoRef.current.srcObject = event.streams[0];
-        setStatus("🟢 실시간 영상 연결됨");
-      }
-    };
-
-    // 4. Offer 수신 (로봇 -> 나)
-    const subOffer = client.subscribe('/sub/peer/offer', async (msg) => {
-      try {
-        const offer = JSON.parse(msg.body);
-        console.log("📨 Offer 수신");
-        
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        // Answer 전송 (나 -> 로봇)
-        client.publish({
-          destination: '/pub/peer/answer',
-          body: JSON.stringify(answer)
-        });
-        setStatus("🟡 연결 시도 중...");
-      } catch (e) {
-        console.error("WebRTC Error:", e);
-      }
-    });
-
-    // 5. [중요] ICE Candidate 수신 (로봇 -> 나)
-    // 로봇이 자신의 네트워크 정보를 보내주면 내 PC에 등록해야 함
-    const subIce = client.subscribe('/sub/peer/ice', async (msg) => {
-      try {
-        const candidate = JSON.parse(msg.body);
-        if (pcRef.current) {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      } catch (e) {
-        console.error("ICE Error:", e);
-      }
-    });
-
-    return () => {
-      subOffer.unsubscribe();
-      subIce.unsubscribe();
-      if (pc) pc.close();
-    };
-  }, [client, isConnected]);
+  // 상태 메시지 결정
+  const getStatusText = () => {
+    if (!isConnected) return "서버 연결 끊김";
+    if (!remoteStream) return "영상 신호 대기 중...";
+    return "🟢 LIVE";
+  };
 
   return (
     <div className="bg-black p-4 rounded-xl shadow-lg w-full h-full flex flex-col border border-gray-800">
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-4 px-2">
         <div className="flex items-center gap-2 text-white">
-          <Video size={20} className="text-red-500 animate-pulse" />
-          <h3 className="font-bold text-sm tracking-wider">LIVE STREAM</h3>
+          <Video size={20} className={`text-red-500 ${remoteStream ? 'animate-pulse' : ''}`} />
+          <h3 className="font-bold text-sm tracking-wider">ROBOT VIEW</h3>
         </div>
-        <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
-          {status}
-        </span>
+        <div className="flex items-center gap-2">
+           {/* 상태 배지 */}
+           <span className={`text-xs px-2 py-1 rounded flex items-center gap-1 border ${
+             remoteStream 
+               ? 'bg-green-900/30 text-green-400 border-green-800' 
+               : 'bg-gray-800 text-gray-400 border-gray-700'
+           }`}>
+             {remoteStream && <Activity size={10} className="animate-bounce" />}
+             {getStatusText()}
+           </span>
+        </div>
       </div>
 
       {/* 비디오 영역 */}
-      <div className="relative w-full flex-1 bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
+      <div className="relative w-full flex-1 bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center border border-gray-800/50">
+        
+        {/* 실제 비디오 화면 */}
         <video 
           ref={videoRef} 
           autoPlay 
           playsInline 
           muted 
-          className="w-full h-full object-contain"
+          className={`w-full h-full object-contain transition-opacity duration-500 ${remoteStream ? 'opacity-100' : 'opacity-0'}`}
         />
         
-        {/* 연결 안 됐을 때 보여줄 아이콘 */}
-        {status.includes("대기") && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 gap-2">
-                <WifiOff size={48} />
-                <p className="text-sm">Connecting...</p>
+        {/* 연결 안 됐을 때 보여줄 대기 화면 */}
+        {!remoteStream && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 gap-3">
+                <div className={`p-4 rounded-full bg-gray-800/50 ${isConnected ? 'animate-pulse' : ''}`}>
+                  <WifiOff size={32} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-400">Signal Lost</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {isConnected ? "로봇의 영상을 기다리는 중..." : "서버와 연결되지 않았습니다."}
+                  </p>
+                </div>
             </div>
         )}
       </div>

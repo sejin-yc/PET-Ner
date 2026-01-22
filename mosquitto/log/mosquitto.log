@@ -499,3 +499,7 @@
 1769063844: New connection from 172.18.0.1:40402 on port 1883.
 1769063844: New client connected from 172.18.0.1:40402 as auto-A9CC5319-2981-6BFF-37F8-38B5E47F33F4 (p2, c1, k60).
 1769063856: Client auto-A9CC5319-2981-6BFF-37F8-38B5E47F33F4 closed its connection.
+1769064519: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1769064890: New connection from 172.18.0.1:59966 on port 1883.
+1769064890: New client connected from 172.18.0.1:59966 as auto-CA513822-2CF7-8F74-D839-C0AD89DC7C5F (p2, c1, k60).
+1769064925: Client auto-CA513822-2CF7-8F74-D839-C0AD89DC7C5F closed its connection.
