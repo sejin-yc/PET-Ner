@@ -41,7 +41,10 @@ export const RobotProvider = ({ children }) => {
     // (1) MQTT 연결 생성
     const mClient = mqtt.connect(MQTT_URL, {
       clean: true,
-      reconnectPeriod: 1000, 
+      reconnectPeriod: 1000,
+
+      username: 'ssafy',
+      password: '1',
     });
 
     mClient.on('connect', () => {
