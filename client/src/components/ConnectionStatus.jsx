@@ -1,5 +1,5 @@
 import React from 'react';
-import { useRobot } from '../context/RobotContext';
+import { useRobot } from '../contexts/RobotContext';
 
 const ConnectionStatus = () => {
   const { isConnected } = useRobot();
