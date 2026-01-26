@@ -3,6 +3,7 @@ import { useRobot } from '../contexts/RobotContext';
 import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton'; // 경로 확인 필요
 import StreamPanel from '../components/StreamPanel'; // ✅ 우리가 만든 완벽한 영상 패널 가져오기
+import ConnectionStatus from '../components/ConnectionStatus';
 
 const Dashboard = () => {
   const { 
@@ -30,6 +31,20 @@ const Dashboard = () => {
   
   return (
     <div className="grid grid-cols-12 gap-6 h-full pb-10">
+      
+      <div className="col-span-12 flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            🤖 Intelligent Robot Dashboard
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Real-time control & monitoring system powered
+          </p>
+        </div>
+        <div className="mt-4 md:mt-0">
+          <ConnectionStatus />
+        </div>
+      </div>
       
       {/* === 왼쪽 패널 (지도 & 영상) === */}
       <div className="col-span-12 lg:col-span-8 space-y-6">
