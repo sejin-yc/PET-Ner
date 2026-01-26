@@ -1,25 +1,41 @@
 package com.ssafy.robot_server.handler;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
+@RequiredArgsConstructor
 public class Ros2WebSocketHandler extends TextWebSocketHandler {
+
+    // ✅ 웹(React)으로 메시지를 보내기 위한 배달부 (STOMP)
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        System.out.println("🤖 [ROS2] 로봇이 서버에 연결되었습니다! ID: " + session.getId());
+        System.out.println("🤖 [ROS2] 로봇 연결됨: " + session.getId());
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        // 로봇이 보낸 데이터(JSON) 확인
         String payload = message.getPayload();
-        System.out.println("📩 [ROS2 데이터 수신]: " + payload);
-        
-        // TODO: 여기서 받은 데이터를 파싱해서 DB에 저장하거나, 웹(React)으로 쏘는 로직이 필요함.
-        // (일단 오늘은 로봇->서버 연결부터 확인합시다)
+        // System.out.println("📩 [ROS2 데이터]: " + payload); // 로그 너무 많으면 주석 처리
+
+        // ✅ [핵심] 받은 데이터를 웹 프론트엔드로 바로 토스!
+        // React는 "/sub/robot/status"를 구독하고 있으면 데이터를 받게 됨.
+        try {
+            messagingTemplate.convertAndSend("/sub/robot/status", payload);
+        } catch (Exception e) {
+            System.err.println("메시지 전달 실패: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+        System.out.println("🔌 [ROS2] 로봇 연결 해제됨");
     }
 }
