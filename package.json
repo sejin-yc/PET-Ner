@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@stomp/stompjs": "^7.2.1",
-    "mqtt": "^5.14.1"
+    "@stomp/stompjs": "^7.2.1"
   }
 }
