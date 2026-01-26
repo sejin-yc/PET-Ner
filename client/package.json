@@ -10,11 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.2.1",
     "@tanstack/react-query": "^5.90.17",
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
-    "mqtt": "^5.14.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-joystick-component": "^6.2.1",
@@ -22,7 +22,6 @@
     "recharts": "^3.6.0",
     "sockjs-client": "^1.6.1",
     "sonner": "^2.0.7",
-    "stompjs": "^2.3.3",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
