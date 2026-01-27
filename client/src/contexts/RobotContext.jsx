@@ -355,11 +355,11 @@ export const RobotProvider = ({ children }) => {
       const response = await axios.post('/api/videos', dummyData);
       if (response.status === 200 || response.status === 201) {
         setVideos((prev) => [response.data, ...prev]);
-        alert("✅ 테스트 영상이 생성되었습니다!");
+        toast.success("✅ 테스트 영상이 생성되었습니다!");
       }
     } catch (error) {
       console.error("영상 생성 실패:", error);
-      alert("❌ 에러 발생: " + (error.response?.status || error.message));
+      toast.error("❌ 에러 발생: " + (error.response?.status || error.message));
     }
   };
 
