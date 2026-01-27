@@ -140,7 +140,7 @@ export const RobotProvider = ({ children }) => {
               battery: payload.status?.vehicleStatus?.batteryLevel ?? prev.battery,
               position: (payload.currentLocation) ? { x: payload.currentLocation.x, y: payload.currentLocation.y } : prev.position,
               mode: payload.status?.module?.status === 'ACTIVE' ? 'auto' : 'manual',
-              lastUpdate: new Data().toISOString()
+              lastUpdate: new Date().toISOString()
             }));
           } catch (e) {
             console.error("데이터 파싱 에러:", e);
@@ -238,26 +238,26 @@ export const RobotProvider = ({ children }) => {
       
       // 5. Answer 전송 (Signaling 서버로)
       if (signalWsRef.current?.readyState === WebSocket.OPEN) {
-        const answerPayload = {
-          type: 'answer',
-          sdp: pc.localDescription.sdp
-        };
-        signalWsRef.current.send(JSON.stringify(answerPayload));
-        console.log("📤 [WebRTC] Answer 전송 완료")
-      }
+        signalWsRef.current.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription.sdp }));
+        console.log("📤 [WebRTC] Answer 전송 완료");
+        // const answerPayload = {
+          // type: 'answer',
+          // sdp: pc.localDescription.sdp
+        }
+        // signalWsRef.current.send(JSON.stringify(answerPayload));
+        // console.log("📤 [WebRTC] Answer 전송 완료")
       // STOMP가 아니므로 headers 없이( {}, ) 바로 보냅니다.
       // mClient.publish('/pub/peer/answer', JSON.stringify(answerPayload));
       // console.log("📤 [WebRTC] Answer 전송 완료!");
-
     } catch (error) {
       console.error("❌ WebRTC 연결 실패:", error);
     }
   };
 
   /* 3. 데이터 조회 (기존 유지) */
-  const { data: videos = [] } = useQuery({ queryKey: ['videos', user?.id], queryFn: async () => (await api.get(`/videos?userId=${user.id}`)).data, enabled: !!user?.id });
+  // const { data: videos = [] } = useQuery({ queryKey: ['videos', user?.id], queryFn: async () => (await api.get(`/videos?userId=${user.id}`)).data, enabled: !!user?.id });
   const { data: logs = [] } = useQuery({ queryKey: ['logs', user?.id], queryFn: async () => (await api.get(`/logs?userId=${user.id}`)).data, enabled: !!user?.id });
-  const deleteVideoMutation = useMutation({ mutationFn: (id) => api.delete(`/videos/${id}`), onSuccess: () => { queryClient.invalidateQueries(['videos']); toast.success("삭제되었습니다."); }});
+  // const deleteVideoMutation = useMutation({ mutationFn: (id) => api.delete(`/videos/${id}`), onSuccess: () => { queryClient.invalidateQueries(['videos']); toast.success("삭제되었습니다."); }});
   const deleteLogMutation = useMutation({ mutationFn: (id) => api.delete(`/logs/${id}`), onSuccess: () => { queryClient.invalidateQueries(['logs']); toast.success("삭제되었습니다."); }});
 
   /* 4. 로봇 제어 */
@@ -357,9 +357,21 @@ export const RobotProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("영상 생성 실패:", error);
-      alert("❌ 서버 연결 실패! (Network 탭 확인 필요)");
+      alert("❌ 에러 발생: " + (error.response?.status || error.message));
     }
   };
+
+  const deleteVideo = async (id) => {
+    try {
+      await api.delete(`/videos/${id}`);
+      setVideos((prev) => prev.filter(v => v.id !== id));
+      toast.success("삭제되었습니다.");
+    } catch (error) {
+      console.error("삭제 실패:", error);
+      toast.error("삭제 실패");
+    }
+  };
+
   const addTestLog = async () => { if (!user) return; try { await api.post('/log', { userId: user.id, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {} };
 
   /* 5. 키보드 제어 */
@@ -390,7 +402,7 @@ export const RobotProvider = ({ children }) => {
 
       robotStatus, isVideoOn, toggleVideo, moveRobot, emergencyStop, toggleMode,
       sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording, trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
-      videos, deleteVideo: deleteVideoMutation.mutate, addTestVideo, logs, deleteLog: deleteLogMutation.mutate, addTestLog, isRobotLoading,
+      videos, deleteVideo, addTestVideo, logs, deleteLog: deleteLogMutation.mutate, addTestLog, isRobotLoading,
     }}>
       {children}
     </RobotContext.Provider>
