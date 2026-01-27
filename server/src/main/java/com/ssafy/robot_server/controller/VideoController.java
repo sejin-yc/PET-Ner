@@ -44,7 +44,8 @@ public class VideoController {
 
         // 생성 시간 자동 설정 (없을 경우)
         if (video.getCreatedAt() == null) {
-            video.setCreatedAt(LocalDateTime.now());
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            video.setCreatedAt(java.time.LocalDateTime.now().format(formatter));
         }
 
         return ResponseEntity.ok(videoRepository.save(video));
