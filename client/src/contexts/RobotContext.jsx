@@ -339,7 +339,7 @@ export const RobotProvider = ({ children }) => {
   const addTestVideo = async () => {
     try {
       const dummyData = {
-        fileName: `test_${Data.now()}.jpg`,
+        fileName: `test_${Date.now()}.jpg`,
         videoUrl: "/uploads/test.jpg",
         thumbnailUrl: "/uploads/test.jpg",
         duration: "00:15",
