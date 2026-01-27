@@ -20,6 +20,8 @@ nginx/ssl/
 mosquitto/data/
 mosquitto/log/
 *.db
+mosquitto/data/*.db
+mosquitto/log/*.log
 
 # === ☕ Backend (Spring Boot) ===
 server/.gradle/
