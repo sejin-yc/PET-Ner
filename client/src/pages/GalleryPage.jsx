@@ -31,7 +31,7 @@ const GalleryPage = () => {
       </div>
 
       {/* 영상 그리드 리스트 */}
-      {videos.length === 0 ? (
+      {!videos || videos.length === 0 ? (
         <div className="text-center py-20 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-400">
           <Video size={48} className="mx-auto mb-4 opacity-20" />
           <p>저장된 영상이 없습니다.</p>

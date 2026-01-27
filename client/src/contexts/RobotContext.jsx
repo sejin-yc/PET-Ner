@@ -21,6 +21,8 @@ export const RobotProvider = ({ children }) => {
   const { addNotification } = useNotifications();
   const queryClient = useQueryClient();
 
+  const [videos, setVideos] = useState([]);
+
   // const [client, setClient] = useState(null);
   // const [isConnected, setIsConnected] = useState(false);
   
