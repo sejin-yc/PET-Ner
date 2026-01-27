@@ -1,5 +1,8 @@
 package com.ssafy.robot_server.domain;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatTypes;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor; // ✅ 추가
 import lombok.Builder;            // ✅ 추가
@@ -32,5 +35,6 @@ public class Video {
 
     @CreationTimestamp
     @Column(updatable = false)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Seoul")
     private LocalDateTime createdAt;
 }
