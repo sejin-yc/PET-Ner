@@ -1,0 +1,10 @@
+# Ultralytics YOLO Pose dataset config
+path: /home/ssafy/cat_state_project/src/cat_pose_yolo
+train: images/train
+val: images/val
+
+names:
+  0: cat
+
+# keypoints: [num_kpts, dims] dims=3 means (x,y,vis)
+kpt_shape: [15, 3]
