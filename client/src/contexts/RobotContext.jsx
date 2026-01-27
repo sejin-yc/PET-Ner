@@ -339,8 +339,9 @@ export const RobotProvider = ({ children }) => {
   const addTestVideo = async () => {
     try {
       const dummyData = {
+        userId: 1,
         fileName: `test_${Date.now()}.jpg`,
-        videoUrl: "/uploads/test.jpg",
+        url: "/uploads/test.jpg",
         thumbnailUrl: "/uploads/test.jpg",
         duration: "00:15",
         behavior: "테스트 감지",
