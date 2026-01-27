@@ -33,7 +33,7 @@ public class Log {
     private int detectionCount;
     private String details;
 
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    // @CreationTimestamp
+    // @Column(updatable = false)
+    private String createdAt;
 }

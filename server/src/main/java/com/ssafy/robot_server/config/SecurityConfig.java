@@ -56,7 +56,7 @@ public class SecurityConfig {
                 // ✅ [수정 2] Swagger 및 정적 리소스, 웹소켓 허용
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/ws/**", "/error").permitAll()
                 
-                .requestMatchers("/api/videos/**", "/uploads/**").permitAll()
+                .requestMatchers("/api/videos/**", "/uploads/**", "/api/logs/**").permitAll()
 
                 // 3. 나머지는 인증 필요
                 .anyRequest().authenticated()

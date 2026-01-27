@@ -4,11 +4,12 @@ import com.ssafy.robot_server.domain.Log;
 import com.ssafy.robot_server.repository.LogRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -41,7 +42,8 @@ public class LogController {
 
         // 시간 자동 설정 (Entity에 @CreationTimestamp가 없다면 여기서 설정)
         if (log.getCreatedAt() == null) {
-            log.setCreatedAt(LocalDateTime.now());
+            String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            log.setCreatedAt(now);
         }
 
         return ResponseEntity.ok(logRepository.save(log));

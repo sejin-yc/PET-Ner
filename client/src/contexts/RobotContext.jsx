@@ -374,7 +374,7 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const addTestLog = async () => { if (!user) return; try { await api.post('/log', { userId: user.id, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {} };
+  const addTestLog = async () => { if (!user) return; try { await api.post('/logs', { userId: user.id, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {console.error(e); toast.error("로그 생성 실패")} };
 
   /* 5. 키보드 제어 */
   const keysPressed = useRef({}); 
