@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import api from '../api/axios';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 // import mqtt from 'mqtt'; // ✅ stompjs 대신 mqtt 사용
 
 const RobotContext = createContext();
@@ -335,7 +336,29 @@ export const RobotProvider = ({ children }) => {
   const startWalkieTalkie = () => { setIsRecording(true); };
   const stopWalkieTalkie = () => { if (isRecording) { setIsRecording(false); addNotification({ type: 'robot', title: '📡 무전 전송', message: '사용자의 음성을 로봇으로 전송했습니다.', link: '/'}); }};
   const trainVoice = () => { toast.info("목소리 학습 시작..."); setTimeout(() => { setIsVoiceCloned(true); setUseClonedVoice(true); toast.success("학습 완료!"); }, 3000); };
-  const addTestVideo = async () => {};
+  const addTestVideo = async () => {
+    try {
+      const dummyData = {
+        fileName: `test_${Data.now()}.jpg`,
+        videoUrl: "/uploads/test.jpg",
+        thumbnailUrl: "/uploads/test.jpg",
+        duration: "00:15",
+        behavior: "테스트 감지",
+        catName: "테스트 냥이"
+      };
+
+      console.log("서버로 요청 보냄:", dummyData);
+
+      const response = await axios.post('/api/videos', dummyData);
+      if (response.status === 200 || response.status === 201) {
+        setVideos((prev) => [response.data, ...prev]);
+        alert("✅ 테스트 영상이 생성되었습니다!");
+      }
+    } catch (error) {
+      console.error("영상 생성 실패:", error);
+      alert("❌ 서버 연결 실패! (Network 탭 확인 필요)");
+    }
+  };
   const addTestLog = async () => { if (!user) return; try { await api.post('/log', { userId: user.id, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {} };
 
   /* 5. 키보드 제어 */
