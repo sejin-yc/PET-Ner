@@ -1,106 +1,126 @@
-# 🤖 Intelligent Robot Dashboard Project
+# 🤖 Intelligent Robot Dashboard (지능형 로봇 관제 시스템)
 
-**지능형 로봇을 웹에서 실시간으로 관제하고 제어하는 통합 대시보드 프로젝트**입니다.
-Docker Compose를 기반으로 마이크로서비스 아키텍처를 구축하였으며, MQTT 프로토콜을 이용한 실시간 통신 및 Jenkins를 활용한 원클릭 배포 시스템을 갖추고 있습니다.
+**자율주행 로봇의 실시간 모니터링, 원격 제어(WebRTC) 및 데이터 분석을 위한 웹 기반 통합 관제 플랫폼**입니다.
+Nginx를 게이트웨이로 활용한 마이크로서비스 아키텍처로 설계되었으며, HTTPS 보안 통신과 MQTT를 이용한 실시간 로봇 제어를 지원합니다.
 
 ---
 
 ## 🏗 System Architecture (시스템 아키텍처)
 
-이 프로젝트는 **Docker Compose**를 통해 5개의 컨테이너가 유기적으로 연결되어 동작합니다.
+이 프로젝트는 **Nginx Gateway**를 중심으로 5개의 컨테이너가 유기적으로 연결되어 동작합니다.
 
-| 서비스명 | 컨테이너 이름 | 역할 | 포트 | 비고 |
+| 서비스명 | 컨테이너 이름 | 역할 | 포트 (Host:Container) | 비고 |
 | --- | --- | --- | --- | --- |
-| **Frontend** | `robot_client` | React 기반 웹 대시보드 (Nginx) | `80` | 사용자 UI 제공 |
-| **Backend** | `robot_server` | Spring Boot API 서버 | `8080` | 비즈니스 로직, DB/MQTT 연동 |
-| **Broker** | `robot_mqtt` | Eclipse Mosquitto | `1883` | 로봇-서버-클라이언트 메시지 중계 |
-| **Database** | `robot_db` | PostgreSQL 15 | `5432` | 사용자, 로그, 비디오 데이터 저장 |
-| **Jenkins** | `jenkins` | CI/CD 자동화 서버 | `9090` | 배포 파이프라인 관리 |
+| **Gateway** | `robot_nginx` | Reverse Proxy & SSL Termination | `80`, `443` | 모든 트래픽의 진입점 (HTTPS) |
+| **Frontend** | `robot_client` | React 웹 서버 (Nginx Upstream) | (Internal) | Nginx를 통해서만 접근 |
+| **Backend** | `robot_server` | Spring Boot API & WebSocket | `8080:8080` | 비즈니스 로직, WebRTC 시그널링 |
+| **Broker** | `robot_mqtt` | Eclipse Mosquitto | `1883:1883` | 로봇-서버 간 메시지 중계 (ROS2) |
+| **Database** | `robot_db` | PostgreSQL 15 | `5432:5432` | 사용자, 로그, 영상 메타데이터 저장 |
 
 ---
 
 ## 🛠 Tech Stack (기술 스택)
 
-* **Frontend**: React, Nginx, Axios, WebSocket
-* **Backend**: Java 17, Spring Boot 3.x, Spring Data JPA, Spring Security
-* **Database**: PostgreSQL 15
-* **Infra & DevOps**: AWS EC2, Docker, Docker Compose, Jenkins
-* **Communication**: MQTT (Eclipse Mosquitto)
+### **Frontend**
+
+* **Core**: React (Vite), JavaScript
+* **Styling**: Tailwind CSS v4, Lucide React
+* **State Mgmt**: Context API (Auth, Robot, Notification)
+* **Visualization**: Recharts (데이터 시각화), React-Joystick-Component
+* **Communication**: Axios, WebSocket (StompJS), **WebRTC (영상 스트리밍)**
+
+### **Backend**
+
+* **Core**: Java 17, Spring Boot 3.x
+* **Security**: Spring Security, JWT, BCrypt
+* **Database**: PostgreSQL 15, JPA (Hibernate)
+* **Messaging**: Spring Integration MQTT, WebSocket
+* **API Docs**: Swagger (SpringDoc OpenAPI)
+
+### **Infra & DevOps**
+
+* **Server**: AWS EC2 (Ubuntu)
+* **Container**: Docker, Docker Compose
+* **Gateway**: Nginx (Load Balancing, SSL/TLS)
+* **CI/CD**: Jenkins (Automated Deployment)
 
 ---
 
 ## 🏃 How to Run (실행 가이드)
 
-### 1. 🏠 Local Environment (로컬 개발 환경)
+### 1. 🏠 Local Development (로컬 개발 환경)
 
-개발자 PC(Windows/Mac)에서 프로젝트를 실행하는 방법입니다.
+개발 효율을 위해 **백엔드/DB/MQTT는 Docker**로 띄우고, **프론트엔드는 로컬(Node.js)**에서 실행하여 Hot-Reloading 기능을 활용하는 **하이브리드 방식**을 권장합니다.
 
 **전제 조건**
 
-* Docker Desktop 및 Git 설치 필요
+* Docker Desktop 및 Node.js(v18+) 설치 필요
 
-**실행 단계**
+**단계 1: 인프라 및 백엔드 실행 (Docker)**
+프로젝트 **루트 디렉터리**에서 아래 명령어를 실행하여 DB, MQTT, 백엔드 서버를 먼저 띄웁니다.
 
 ```bash
 # 1. 프로젝트 클론
 git clone https://lab.ssafy.com/s14-webmobile3-sub1/S14P11C203.git
 cd S14P11C203
 
-# 2. 통합 브랜치 체크아웃
-git checkout FE,BE,Infra
+# 2. 백엔드 및 인프라 실행 (Nginx, Client 제외)
+docker compose up -d --build robot_db robot_mqtt robot_server
 
-# 3. 전체 서비스 실행 (백그라운드 모드)
-docker compose up -d --build
+# 3. 실행 확인 (3개의 컨테이너가 Up 상태여야 함)
+docker compose ps
+
+```
+
+**단계 2: 프론트엔드 설정 변경**
+로컬 개발 시에는 Nginx를 거치지 않고 백엔드(`localhost:8080`)로 직접 요청해야 합니다.
+`client/src/api/axios.js` 파일을 열어 `baseURL`을 수정합니다.
+
+```javascript
+const api = axios.create({
+  // baseURL: 'https://i14c203.p.ssafy.io/api',  // <-- 배포용 (주석 처리)
+  baseURL: 'http://localhost:8080/api',         // <-- 로컬용 (주석 해제)
+  headers: { 'Content-Type': 'application/json' },
+});
+
+```
+
+**단계 3: 프론트엔드 실행 (Node.js)**
+새로운 터미널 창을 열고 `client` 폴더로 이동하여 실행합니다.
+
+```bash
+cd client
+npm install   # 의존성 설치 (최초 1회)
+npm run dev   # 개발 서버 실행
 
 ```
 
 **접속 주소**
 
-* Frontend: `http://localhost:80`
-* Backend: `http://localhost:8080`
-* Jenkins: `http://localhost:9090`
+* Frontend: `http://localhost:5173`
+* Backend API: `http://localhost:8080/swagger-ui/index.html`
 
-> **💡 주의사항 (IDE 실행 시)**
-> IntelliJ나 VS Code에서 Spring Boot만 단독 실행할 경우, `application.yml`의 DB/MQTT 주소를 컨테이너 이름(`robot_db`)이 아닌 `localhost`로 변경해야 합니다.
+---
 
-### 2. ☁️ AWS EC2 Server (서버 배포 환경)
+### 2. ☁️ Server Deployment (서버 배포 환경)
 
-AWS EC2(Ubuntu) 환경에서 서비스를 운영하는 방법입니다.
+AWS EC2 등 운영 서버에서는 **Nginx를 포함한 전체 컨테이너**를 실행합니다.
 
-**최초 설정**
+**배포 순서**
+
+1. `client/src/api/axios.js`의 주소를 배포용 도메인(`https://...`)으로 원복합니다.
+2. 서버에는 SSL 인증서(`fullchain.pem`, `privkey.pem`)가 `./certbot/conf/live/...` 경로에 있어야 합니다.
+3. 전체 서비스를 실행합니다.
 
 ```bash
-# 1. Docker 설치 및 권한 부여
-sudo apt-get update && sudo apt-get install docker.io docker-compose-plugin -y
-sudo usermod -aG docker $USER
-newgrp docker
-
-# 2. 프로젝트 실행
-git clone https://lab.ssafy.com/s14-webmobile3-sub1/S14P11C203.git
-cd S14P11C203
+# 전체 서비스 빌드 및 실행 (Nginx 포함)
 sudo docker compose up -d --build
 
 ```
 
-**배포 및 업데이트 (Deployment)**
+**접속 주소**
 
-* 이 프로젝트는 **Jenkins**를 통해 배포 자동화가 구축되어 있습니다.
-* 소스 코드를 `FE,BE,Infra` 브랜치에 Push한 후, **Jenkins 대시보드에서 `Build Now` 버튼을 클릭**하면 배포가 시작됩니다.
-* 터미널에 접속하여 수동으로 명령어를 입력할 필요가 없습니다.
-
----
-
-## 🔄 CI/CD Pipeline (Jenkins)
-
-안정적인 배포를 위해 Jenkins 파이프라인 스크립트가 구성되어 있습니다.
-
-### 배포 프로세스 (Workflow)
-
-1. **Code Push**: 개발자가 GitLab에 코드를 업로드합니다.
-2. **Manual Trigger**: Jenkins 관리자가 **[Build Now]** 버튼을 클릭합니다.
-3. **Git Pull**: Jenkins가 `FE,BE,Infra` 브랜치의 최신 코드를 가져옵니다.
-4. **Docker Cleanup**: 충돌 방지를 위해 기존 컨테이너(`robot_server`, `robot_mqtt` 등)를 **강제 삭제**합니다.
-5. **Build & Up**: 최신 코드로 이미지를 빌드하고 컨테이너를 재실행합니다.
+* Dashboard: `https://i14c203.p.ssafy.io` (HTTPS 적용됨)
 
 ---
 
@@ -108,15 +128,13 @@ sudo docker compose up -d --build
 
 ```bash
 S14P11C203
-├── client/                 # React Frontend Source
-│   ├── Dockerfile
-│   └── nginx.conf
-├── server/                 # Spring Boot Backend Source
-│   ├── src/main/resources/application.yml  # 설정 파일
-│   └── Dockerfile
-├── jenkins_home/           # Jenkins Data Volume
-├── docker-compose.yml      # Container Orchestration
-└── README.md
+├── client/                 # React Frontend (Vite)
+├── server/                 # Spring Boot Backend
+├── nginx/                  # Nginx Gateway Config
+│   └── conf.d/default.conf # 리버스 프록시 및 라우팅 설정
+├── mosquitto/              # MQTT Broker Config
+├── certbot/                # SSL 인증서 저장소
+└── docker-compose.yml      # 전체 컨테이너 오케스트레이션
 
 ```
 
@@ -124,20 +142,21 @@ S14P11C203
 
 ## ⚠️ Troubleshooting (트러블슈팅)
 
-### Q1. 502 Bad Gateway 에러가 발생해요.
+### Q1. 차트 에러 (Recharts width -1)
 
-* **원인**: Spring Boot 서버가 아직 부팅 중이거나, 에러로 인해 컨테이너가 종료된 상태입니다.
-* **해결**: 약 30초 대기 후 새로고침하거나, `docker logs robot_server`로 에러 로그를 확인하세요.
+* **현상**: 콘솔에 `The width(-1) of chart should be greater than 0` 에러 발생.
+* **원인**: 브라우저 렌더링 타이밍 문제입니다.
+* **해결**: 기능상 문제는 없으나, `ResponsiveContainer`의 `width`를 `99%`로 설정하거나 부모 div에 고정 높이(`style={{height: '250px'}}`)를 주면 해결됩니다.
 
-### Q2. MQTT 연결 실패 (Connection Refused)
+### Q2. 404 Not Found (API 요청 실패)
 
-* **원인**: 백엔드 서버가 브로커의 주소를 찾지 못하는 경우입니다.
-* **해결**: `application.yml` 파일의 `mqtt.broker-url`이 `tcp://robot_mqtt:1883`으로 설정되어 있는지 확인하세요. (Localhost 아님)
+* **원인**: 프론트엔드는 `/api/logs`로 요청하지만, 백엔드에는 `/user/logs`로 매핑되어 있을 수 있습니다.
+* **해결**: Nginx의 `rewrite` 설정이 올바르게 적용되었는지 확인하거나, 로컬 실행 시 `axios.js`의 경로를 확인하세요.
 
-### Q3. "Bind for 0.0.0.0:1883 failed" 에러
+### Q3. 502 Bad Gateway
 
-* **원인**: 기존에 실행된 `mqtt_broker` 컨테이너가 포트를 점유하고 있어서 발생합니다.
-* **해결**: Jenkins 파이프라인의 Cleanup 단계가 이를 자동으로 처리하지만, 수동 해결 시 `docker rm -f mqtt_broker`를 입력하세요.
+* **원인**: 백엔드(`robot_server`)가 부팅 중이거나 DB 연결 실패로 다운된 상태입니다.
+* **해결**: `docker logs -f robot_server`로 에러 로그를 확인하세요. (DB 비밀번호나 MQTT URL 확인 필요)
 
 ---
 
@@ -146,7 +165,7 @@ S14P11C203
 * **Front-End**: (이름)
 * **Back-End**: (이름)
 * **Infra/DevOps**: (본인 이름)
-* **Embedded**: (이름)
+* **Embedded/ROS**: (이름)
 
 ---
 
