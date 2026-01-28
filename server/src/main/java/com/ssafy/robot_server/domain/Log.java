@@ -25,6 +25,9 @@ public class Log {
     // 이렇게 ID만 저장하면 아주 가볍고 빠릅니다.
     private Long userId;
 
+    private Long rentId;
+    private Long vehicleId;
+
     private String mode;        // auto, manual
     private String status;      // completed, in-progress
     private String duration;    // "10분 30초" (화면 표시용)

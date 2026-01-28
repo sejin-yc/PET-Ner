@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/videos")
+@RequestMapping("/user/videos")
 @RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
 @Tag(name = "5. 영상 관리", description = "특이행동/사건사고 영상 API")
 public class VideoController {

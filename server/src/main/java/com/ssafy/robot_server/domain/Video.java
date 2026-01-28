@@ -21,6 +21,10 @@ public class Video {
     private Long id;
 
     private Long userId;        // 유저 ID (숫자)
+
+    private Long rentId;
+    private Long vehicleId;
+
     private String catName;     // 고양이 이름
     private String behavior;    // 행동 (예: 밥 먹음)
     private String duration;    // 영상 길이 (예: "00:15")
