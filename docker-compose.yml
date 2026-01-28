@@ -59,7 +59,7 @@ services:
   
   # 5. Gateway: Nginx
   robot_nginx:
-    image: ./nginx
+    build: ./nginx
     container_name: robot_nginx
     ports:
       - "80:80"
