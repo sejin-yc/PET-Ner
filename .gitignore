@@ -52,3 +52,6 @@ fake_robot/env/
 fake_robot/__pycache__/
 fake_robot/*.pyc
 fake_robot/.pytest_cache/
+
+# 환경변수 파일 무시 (보안)
+.env
