@@ -57,8 +57,8 @@ const LogCharts = () => {
           </div>
         </div>
         
-        <div className="h-64 w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+        <div className="w-full min-w-0" style={{ height: '250px', minHeight: '250px' }}>
+          <ResponsiveContainer width="99%" height="100%">
             <BarChart data={chartData}> {/* ✅ 가짜 data 대신 계산된 chartData 사용 */}
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
@@ -85,8 +85,8 @@ const LogCharts = () => {
           </div>
         </div>
 
-        <div className="h-64 w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
+        <div className="w-full min-w-0" style={{ height: '250px', minHeight: '250px' }}>
+          <ResponsiveContainer width="99%" height="100%">
             <AreaChart data={chartData}> {/* ✅ 여기도 chartData 사용 */}
               <defs>
                 <linearGradient id="colorEvents" x1="0" y1="0" x2="0" y2="1">
