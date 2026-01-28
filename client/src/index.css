@@ -1,8 +1,8 @@
+/* 1. 폰트 가져오기 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* ✅ Tailwind CSS v4 필수 설정 */
 @import "tailwindcss";
-
-/* 1. 폰트 가져오기 (이 줄 추가!) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* 2. Tailwind CSS v4 설정 */
 @import "tailwindcss";

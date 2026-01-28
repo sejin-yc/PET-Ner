@@ -16,6 +16,9 @@ const RobotContext = createContext();
 const STOMP_URL = 'wss://i14c203.p.ssafy.io/ws';
 const SIGNAL_URL = 'wss://i14c203.p.ssafy.io/signal';
 
+// const STOMP_URL = 'ws://localhost:8080/ws';
+// const SIGNAL_URL = 'ws://localhost:8080/signal';
+
 export const RobotProvider = ({ children }) => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
@@ -379,24 +382,76 @@ export const RobotProvider = ({ children }) => {
   const addTestLog = async () => { if (!user) return; try { await api.post('/logs', { userId: user.id, rentId: 999, vehicleId: 101, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {console.error(e); toast.error("로그 생성 실패")} };
 
   /* 5. 키보드 제어 */
-  const keysPressed = useRef({}); 
-  const lastCommand = useRef({ linear: 0, angular: 0 });
+  // const keysPressed = useRef({}); 
+  // const lastCommand = useRef({ linear: 0, angular: 0 });
+
+  // 현재 속도를 기억
+  const currentSpeed = useRef({ linear: 0.0, angular: 0.0 });
+
+  // 속도 설정 상수
+  const SPEED_STEP = 0.2;
+  const MAX_SPEED = 2.0;
 
   useEffect(() => {
-    const handleKeyDown = (e) => { if (e.target.tagName !== 'INPUT') keysPressed.current[e.key.toLowerCase()] = true; };
-    const handleKeyUp = (e) => { keysPressed.current[e.key.toLowerCase()] = false; };
-    window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
-    
-    const moveLoop = setInterval(() => {
-      let linear = 0, angular = 0;
-      if (keysPressed.current['w']) linear += 1.0; if (keysPressed.current['s']) linear -= 1.0; 
-      if (keysPressed.current['a']) angular += 1.0; if (keysPressed.current['d']) angular -= 1.0;
-      if (linear !== lastCommand.current.linear || angular !== lastCommand.current.angular) {
-        moveRobot(linear, angular); lastCommand.current = { linear, angular };
+    // const handleKeyDown = (e) => {if (e.target.tagName !== 'INPUT') keysPressed.current[e.key.toLowerCase()] = true; };
+    // const handleKeyUp = (e) => { keysPressed.current[e.key.toLowerCase()] = false; };
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      const key = e.key.toLowerCase();
+      let isChanged = false;
+
+      switch (key) {
+        case 'w':
+          currentSpeed.current.linear = Math.min(currentSpeed.current.linear + SPEED_STEP, MAX_SPEED);
+          isChanged = true;
+          break;
+
+        case 'x':
+          currentSpeed.current.linear = Math.max(currentSpeed.current.linear - SPEED_STEP, -MAX_SPEED);
+          isChanged = true;
+          break;
+
+        case 'a':
+          currentSpeed.current.angular = Math.min(currentSpeed.current.angular + SPEED_STEP, MAX_SPEED);
+          isChanged = true;
+          break;
+        
+        case 'd':
+          currentSpeed.current.angular = Math.max(currentSpeed.current.angular - SPEED_STEP, -MAX_SPEED);
+          isChanged = true;
+          break;
+
+        case 's':
+          currentSpeed.current = { linear: 0.0, angular: 0.0 };
+          isChanged = true;
+          break;
+        
+        default:
+          return;
       }
-    }, 100); 
-    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); clearInterval(moveLoop); };
-  }, [robotStatus.mode]); 
+
+      if (isChanged) {
+        moveRobot(currentSpeed.current.linear, currentSpeed.current.angular);
+        console.log(`🚀 속도 변경: Linear=${currentSpeed.current.linear.toFixed(1)}, Angular=${currentSpeed.current.angular.toFixed(1)}`);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // const moveLoop = setInterval(() => {
+    //   let linear = 0, angular = 0;
+    //   if (keysPressed.current['w']) linear += 1.0; if (keysPressed.current['s']) linear -= 1.0; 
+    //   if (keysPressed.current['a']) angular += 1.0; if (keysPressed.current['d']) angular -= 1.0;
+    //   if (linear !== lastCommand.current.linear || angular !== lastCommand.current.angular) {
+    //     moveRobot(linear, angular); lastCommand.current = { linear, angular };
+    //   }
+    // }, 100); 
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []); 
 
   return (
     <RobotContext.Provider value={{

@@ -10,8 +10,8 @@ from av import VideoFrame
 
 # --- [설정] 네트워크 및 토픽 ---
 # 🚨 중요: SSH 터널링(-L 9999:localhost:1883)을 뚫었으므로 localhost:9999 사용
-MQTT_BROKER = "localhost" 
-MQTT_PORT = 9999  
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
 
 TOPIC_DATA = "/sub/robot/status"       # 로봇 -> React (상태 정보)
 TOPIC_CONTROL = "/pub/robot/control"   # React -> 로봇 (제어 명령)
