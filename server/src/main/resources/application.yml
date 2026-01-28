@@ -5,8 +5,8 @@ spring:
   datasource:
     # 도커 환경이 아니면 robot_db를 localhost로 수정하세요!
     url: jdbc:postgresql://robot_db:5432/robot_db
-    username: admin
-    password: admin
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -24,7 +24,7 @@ spring:
 
 # JWT 설정 (보안을 위해 비밀키는 32자 이상의 긴 문자열 유지)
 jwt:
-  secret: ThisIsASecretKeyForRobotProjectMustBeVeryLongToWorkCorrectly123456
+  secret: ${JWT_SECRET}
 
 # MQTT 설정
 # 브로커가 실행 중이 아니면 서버 기동 시 에러가 날 수 있습니다.
