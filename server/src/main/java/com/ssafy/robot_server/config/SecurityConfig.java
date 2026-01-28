@@ -46,19 +46,17 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // ✅ [수정 1] POST 제한 제거! (OPTIONS 요청 등 모든 메서드 허용)
-                // 프론트에서 "/api"를 붙여서 보내므로 "/api/users/**"를 확실하게 열어줍니다.
-                .requestMatchers("/api/users/**", "/users/**").permitAll()
+                .requestMatchers("/user/**", "/user/register", "/user/login").permitAll()
 
-                // 로봇 데이터(/ros2)와 WebRTC 시그널링(/signal)은 로그인 없이 접속 허용
-                .requestMatchers("/ros2/**", "/signal").permitAll()
-                
-                // ✅ [수정 2] Swagger 및 정적 리소스, 웹소켓 허용
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/ws/**", "/error").permitAll()
-                
-                .requestMatchers("/api/videos/**", "/uploads/**", "/api/logs/**").permitAll()
+                .requestMatchers("/api/**").permitAll()
 
-                // 3. 나머지는 인증 필요
+                .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
+                
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                
+                .requestMatchers("/uploads/**").permitAll()
+
+                // 나머지는 인증 필요
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
