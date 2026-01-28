@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRobot } from '@/contexts/RobotContext';
-import { ClipboardList, Trash2, MapPin, Clock, Search } from 'lucide-react';
+import { ClipboardList, Trash2, MapPin, Clock, Search, Calendar } from 'lucide-react';
 import LogCharts from '@/components/charts/LogCharts'; // ✅ 차트 컴포넌트 추가
 
 const LogsPage = () => {
@@ -69,6 +69,12 @@ const LogsPage = () => {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12}/>
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString() : '날짜 없음'}
+                    </span>
+                    <span className="hidden md:inline text-gray-300">|</span>
+                    
                     <span className="flex items-center gap-1"><Clock size={12}/> {log.duration || '0분'}</span>
                     <span className="flex items-center gap-1"><MapPin size={12}/> {log.distance || 0}m 이동</span>
                     {log.detectionCount > 0 && <span className="text-red-500 font-bold">⚠️ 감지 {log.detectionCount}건</span>}
