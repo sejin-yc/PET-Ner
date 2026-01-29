@@ -271,6 +271,32 @@ export const RobotProvider = ({ children }) => {
   const [useClonedVoice, setUseClonedVoice] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
+  // 유저 변경 시 음성 상태 초기화 + 로그인한 유저의 DB 음성 여부만 반영 (다른 계정/로그아웃 시 이전 유저 상태 안 남기기)
+  useEffect(() => {
+    if (!user?.id) {
+      setIsVoiceCloned(false);
+      setUseClonedVoice(false);
+      return;
+    }
+    setIsVoiceCloned(false);
+    setUseClonedVoice(false);
+    axios.get(`http://localhost:8080/user/voice/${user.id}/status`)
+      .then((res) => {
+        if (res.data?.hasVoice) {
+          setIsVoiceCloned(true);
+          setUseClonedVoice(true);
+        }
+      })
+      .catch(() => {
+        setIsVoiceCloned(false);
+        setUseClonedVoice(false);
+      });
+  }, [user?.id]);
+  const [isVoiceTraining, setIsVoiceTraining] = useState(false);
+  const [voiceTrainingText, setVoiceTrainingText] = useState("");
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   // MQTT Control
   // const moveRobot = (linear, angular) => {
   //   if (!mqttClientRef.current || !mqttClientRef.current.connected) return;
@@ -340,7 +366,98 @@ export const RobotProvider = ({ children }) => {
   };
   const startWalkieTalkie = () => { setIsRecording(true); };
   const stopWalkieTalkie = () => { if (isRecording) { setIsRecording(false); addNotification({ type: 'robot', title: '📡 무전 전송', message: '사용자의 음성을 로봇으로 전송했습니다.', link: '/'}); }};
-  const trainVoice = () => { toast.info("목소리 학습 시작..."); setTimeout(() => { setIsVoiceCloned(true); setUseClonedVoice(true); toast.success("학습 완료!"); }, 3000); };
+  
+  // 목소리 학습 기능
+  const trainVoice = async () => {
+    if (!user) {
+      toast.error("로그인이 필요합니다.");
+      return;
+    }
+
+    const selectedText = "안녕하세요! 오늘 날씨가 정말 좋아요! 오늘도 행복한 하루 보내세요~ 사랑합니다 💗"
+    setVoiceTrainingText(selectedText);
+    setIsVoiceTraining(true);
+
+    try {
+      // 마이크 권한 요청
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // 녹음 완료 후 파일 생성 및 전송
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await sendVoiceToServer(audioBlob, selectedText);
+        
+        // 스트림 정리
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      toast.info(`"${selectedText}" 문구를 녹음해주세요.`);
+      mediaRecorder.start();
+      
+      // 10초 후 자동 중지 (또는 사용자가 중지)
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 10000);
+
+    } catch (error) {
+      console.error("녹음 시작 실패:", error);
+      toast.error("마이크 권한이 필요합니다.");
+      setIsVoiceTraining(false);
+    }
+  };
+
+  // 녹음 중지
+  const stopVoiceTraining = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsVoiceTraining(false);
+  };
+
+  // 서버로 음성 전송
+  const sendVoiceToServer = async (audioBlob, promptText) => {
+    try {
+      setIsVoiceTraining(false);
+      toast.info("음성을 서버로 전송 중...");
+
+      const formData = new FormData();
+      formData.append('userId', user.id);
+      formData.append('promptText', promptText);
+      formData.append('audio', audioBlob, 'voice.wav');
+
+      // FormData 사용 시 Content-Type은 설정하지 않음. axios가 multipart/form-data; boundary=... 자동 설정
+      const response = await axios.post('http://localhost:8080/user/voice/train', formData);
+
+      if (response.data.success) {
+        setIsVoiceCloned(true);
+        setUseClonedVoice(true);
+        addNotification({ 
+          type: 'robot', 
+          title: '🎤 목소리 학습 완료', 
+          message: '이제 내 목소리로 TTS를 사용할 수 있습니다.'
+        });
+      } else {
+        toast.error(response.data.message || "학습 실패");
+      }
+    } catch (error) {
+      console.error("음성 전송 실패:", error);
+      toast.error("서버 연결 실패: " + (error.response?.data?.message || error.message));
+    }
+  };
   const addTestVideo = async () => {
     try {
       const dummyData = {
@@ -460,7 +577,8 @@ export const RobotProvider = ({ children }) => {
       remoteStream, // ✅ 대시보드에서 영상 띄우기 위해 필수
 
       robotStatus, isVideoOn, toggleVideo, moveRobot, emergencyStop, toggleMode,
-      sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording, trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
+      sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording, 
+      trainVoice, stopVoiceTraining, isVoiceTraining, voiceTrainingText, isVoiceCloned, useClonedVoice, setUseClonedVoice,
       videos, deleteVideo, addTestVideo, logs, deleteLog: deleteLogMutation.mutate, addTestLog, isRobotLoading,
     }}>
       {children}

@@ -55,3 +55,7 @@ fake_robot/.pytest_cache/
 
 # 환경변수 파일 무시 (보안)
 .env
+
+# === 🎙️ CosyVoice / 음성 ===
+cosyvoice_models/
+uploads/

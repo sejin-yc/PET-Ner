@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 const AuthContext = createContext();
 
 // ✅ 백엔드 주소 직접 정의 (순수 axios용)
-const BASE_URL = 'https://i14c203.p.ssafy.io/api';
+// const BASE_URL = 'https://i14c203.p.ssafy.io/api';  // 배포용 (주석 처리)
+const BASE_URL = 'http://localhost:8080';              // 로컬용 (백엔드에 /api prefix 없음)
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -26,7 +27,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       // ✅ api 대신 axios 사용 (옛날 토큰 간섭 방지)
-      const response = await axios.post(`${BASE_URL}/users/login`, { email, password });
+      const response = await axios.post(`${BASE_URL}/user/login`, { email, password });
       
       const { token: rawToken, user: receivedUser } = response.data;
       // const rawToken = response.data.token;
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       // ✅ 여기도 순수 axios 사용! 토큰 없이 요청 보냄
-      await axios.post(`${BASE_URL}/users`, userData);
+      await axios.post(`${BASE_URL}/user`, userData);
       
       toast.success("회원가입 성공! 로그인해주세요.");
       return true;
@@ -72,7 +73,7 @@ export const AuthProvider = ({ children }) => {
   // 프로필 수정 등은 기존 api 객체 사용 (토큰 필요하니까)
   const updateProfile = async (newName) => {
     try {
-      await api.put(`/users/${user.id}/profile`, { name: newName });
+      await api.put(`/user/${user.id}/profile`, { name: newName });
       const updatedUser = { ...user, name: newName };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -86,8 +87,8 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (currentPassword, newPassword) => {
     try {
-      await api.post('/users/verify-password', { userId: user.id, password: currentPassword });
-      await api.put(`/users/${user.id}/password`, { newPassword });
+      await api.post('/user/verify-password', { userId: user.id, password: currentPassword });
+      await api.put(`/user/${user.id}/password`, { newPassword });
       toast.success("비밀번호 변경 완료. 다시 로그인해주세요.");
       logout();
       return true;

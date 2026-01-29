@@ -23,7 +23,7 @@ const SettingsPage = () => {
     e.preventDefault();
     try {
       // 백엔드에 비밀번호 확인 요청
-      await api.post('/users/verify-password', { 
+      await api.post('/user/verify-password', { 
         userId: user.id, 
         password: passwordInput 
       });
@@ -69,7 +69,7 @@ const SettingsPage = () => {
     if (!confirm("정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
 
     try {
-      await api.delete(`/users/${user.id}`); // 백엔드 탈퇴 API 호출
+      await api.delete(`/user/${user.id}`); // 백엔드 탈퇴 API 호출
       toast.success("회원 탈퇴가 완료되었습니다.");
       logout(); // 로그아웃 처리
       navigate('/login'); // 로그인 페이지로 이동

@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // 1. Axios 인스턴스 생성
 const api = axios.create({
-  baseURL: 'https://i14c203.p.ssafy.io/api',
-  // baseURL: 'http://localhost:8080/api',
+  // baseURL: 'https://i14c203.p.ssafy.io/api',  // 배포용
+  baseURL: 'http://localhost:8080',              // 로컬용 (백엔드에 /api prefix 없음)
   headers: {
     'Content-Type': 'application/json',
   },

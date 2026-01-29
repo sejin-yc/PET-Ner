@@ -39,6 +39,7 @@ services:
     depends_on:
       - robot_db
       - robot_mqtt
+      - cosyvoice_service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://robot_db:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
@@ -47,6 +48,29 @@ services:
       MQTT_BROKER_URL: tcp://robot_mqtt:1883
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
+      COSYVOICE_SERVICE_URL: http://cosyvoice_service:50001
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - robot_network
+
+  # 6. CosyVoice Service: 음성 토큰 추출 서비스
+  cosyvoice_service:
+    build: 
+      context: ..
+      dockerfile: S14P11C203/cosyvoice_service/Dockerfile
+    container_name: cosyvoice_service
+    ports:
+      - "50001:50001"
+    volumes:
+      - ./uploads:/app/uploads
+      - ../CosyVoice:/app/CosyVoice
+      - ./cosyvoice_models:/root/.cache/modelscope  # 모델 캐시 저장 (재사용)
+      - ./cosyvoice_service/extract_tokens_api.py:/app/extract_tokens_api.py  # 개발용: 코드 수정 시 재빌드 불필요
+    environment:
+      PORT: 50001
+      # 실제 캐시 폴더명(0.5 → 0___5). 이렇게 하면 [Errno 17] File exists 방지
+      COSYVOICE_MODEL_DIR: FunAudioLLM/Fun-CosyVoice3-0___5B-2512
     networks:
       - robot_network
   
