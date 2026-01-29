@@ -1,0 +1,10 @@
+# 빌드 및 실행 결과물 제외
+build/
+devel/
+install/
+log/
+
+# 파이썬 캐시 및 기타 시스템 파일
+__pycache__/
+.catkin_tools/
+.vscode/
