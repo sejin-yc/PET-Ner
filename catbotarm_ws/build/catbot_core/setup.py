@@ -1,1 +1,0 @@
-/home/ssafy/roboticarm/S14P11C203/catbotarm_ws/catbot_core/setup.py
