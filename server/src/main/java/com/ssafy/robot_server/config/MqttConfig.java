@@ -1,6 +1,5 @@
 package com.ssafy.robot_server.config;
 
-import com.ssafy.robot_server.mqtt.MqttGateway;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -51,7 +50,11 @@ public class MqttConfig {
     public MessageProducer inbound() {
         // 🚨 [수정 포인트 1] ID 뒤에 "_in"을 붙여서 겹치지 않게 함!
         MqttPahoMessageDrivenChannelAdapter adapter =
-                new MqttPahoMessageDrivenChannelAdapter(clientId + "_in", mqttClientFactory(), defaultTopic);
+                new MqttPahoMessageDrivenChannelAdapter(
+                    clientId + "_in",
+                    mqttClientFactory(),
+                    "/#"
+                );
         
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());

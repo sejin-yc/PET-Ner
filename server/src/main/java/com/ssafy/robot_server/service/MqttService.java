@@ -39,7 +39,7 @@ public class MqttService {
                 RobotStatus s = RobotStatus.builder()
                         .batteryLevel(json.path("batteryLevel").asInt(0))
                         .temperature(json.path("temperature").asDouble(0.0))
-                        .isCharging(json.path("isCharging").asBoolean(false))
+                        .isCharging(json.path("charging").asBoolean(false))
                         .x(json.path("x").asDouble(0.0))
                         .y(json.path("y").asDouble(0.0))
                         .mode(json.path("mode").asText("unknown"))

@@ -1,12 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../api/axios'; // 토큰이 필요한 요청용
-import axios from 'axios';      // ✅ 토큰 없는 순수 요청용 (새로 추가)
+import api from '../api/axios';
+import axios from 'axios';
 import { toast } from 'sonner';
 
 const AuthContext = createContext();
-
-// ✅ 백엔드 주소 직접 정의 (순수 axios용)
-const BASE_URL = 'https://i14c203.p.ssafy.io/api';
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -27,9 +25,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // ✅ api 대신 axios 사용 (옛날 토큰 간섭 방지)
       const response = await axios.post(`${BASE_URL}/users/login`, { email, password });
-      
       const { token: rawToken, user: receivedUser } = response.data;
-      // const rawToken = response.data.token;
       const pureToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
       
       // 토큰 저장
@@ -49,7 +45,7 @@ export const AuthProvider = ({ children }) => {
   // 3. 회원가입 (추가됨)
   const register = async (userData) => {
     try {
-      // ✅ 여기도 순수 axios 사용! 토큰 없이 요청 보냄
+      // ✅ 순수 axios 사용! 토큰 없이 요청 보냄
       await axios.post(`${BASE_URL}/users`, userData);
       
       toast.success("회원가입 성공! 로그인해주세요.");

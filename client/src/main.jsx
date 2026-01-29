@@ -19,15 +19,10 @@ const queryClient = new QueryClient({
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  /* 🚨 [삭제됨] <React.StrictMode> 
-     이 태그가 있으면 개발 모드에서 컴포넌트를 2번 실행시켜서
-     WebRTC 연결이 꼬이는 원인이 됩니다. 과감하게 지웠습니다!
-  */
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <App />
       <Toaster position="top-center" richColors />
     </BrowserRouter>
   </QueryClientProvider>
-  /* 🚨 [삭제됨] </React.StrictMode> */
 );

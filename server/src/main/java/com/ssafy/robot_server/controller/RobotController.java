@@ -36,10 +36,14 @@ public class RobotController {
 
     // 2. WebRTC Answer 전달 (웹 -> 로봇)
     @MessageMapping("/peer/answer")
-    public void handleAnswer(String answerJson) {
+    public void handleAnswer(Map<String, Object> answerData) {
         System.out.println("📡 WebRTC Answer 수신 (웹 -> 로봇)");
-        // 로봇에게 그대로 토스
-        mqttService.sendCommand("/pub/peer/answer", answerJson);
+        try {
+            String jsonAnswer = objectMapper.writeValueAsString(answerData);
+            mqttService.sendCommand("/pub/peer/answer", jsonAnswer);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
     }
 
     // ✅ [신규 추가] 3. WebRTC ICE Candidate 전달 (웹 -> 로봇)

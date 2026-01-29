@@ -75,7 +75,6 @@ const Dashboard = () => {
 
         {/* 2. ✅ 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
         <section className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm h-[400px]">
-          {/* StreamPanel 안에 모든 영상/WebRTC 로직이 들어있습니다 */}
           <StreamPanel />
         </section>
       </div>

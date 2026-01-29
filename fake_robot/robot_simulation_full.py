@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 import logging
@@ -8,10 +9,20 @@ import paho.mqtt.client as mqtt
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, RTCConfiguration, RTCIceServer, RTCIceCandidate
 from av import VideoFrame
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("RobotSim")
+
+env_mode = os.getenv("ROBOT_ENV", "local")
+
 # --- [설정] 네트워크 및 토픽 ---
-# 🚨 중요: SSH 터널링(-L 9999:localhost:1883)을 뚫었으므로 localhost:9999 사용
+IS_LOCAL = (env_mode != "server")
 MQTT_BROKER = "localhost"
-MQTT_PORT = 1883
+if IS_LOCAL:
+    MQTT_PORT = 1883
+    logger.info(f"🔧 [모드] 로컬 개발 환경 (Port: {MQTT_PORT})")
+else:
+    MQTT_PORT = 9999
+    logger.info(f"🔧 [모드] 서버 터널링 환경 (Port: {MQTT_PORT})")
 
 TOPIC_DATA = "/sub/robot/status"       # 로봇 -> React (상태 정보)
 TOPIC_CONTROL = "/pub/robot/control"   # React -> 로봇 (제어 명령)
@@ -19,9 +30,6 @@ TOPIC_OFFER = "/sub/peer/offer"        # 로봇 -> React (영상 연결 요청)
 TOPIC_ANSWER = "/pub/peer/answer"      # React -> 로봇 (영상 연결 수락)
 TOPIC_ICE = "/sub/peer/ice"            # 로봇 -> React (네트워크 후보군)
 TOPIC_ICE_IN = "/pub/peer/ice"         # React -> 로봇 (네트워크 후보군)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("RobotSim")
 
 # --- [전역 변수] 로봇 상태 ---
 current_linear = 0.0
@@ -125,7 +133,6 @@ def on_message(client, userdata, msg):
         logger.error(f"메시지 처리 에러: {e}")
 
 client.username_pw_set("ssafy", "1")
-
 client.on_connect = on_connect
 client.on_message = on_message
 # 터널링 포트로 접속
@@ -164,9 +171,7 @@ async def run_webrtc():
 # --- 4. 로봇 데이터 & 움직임 시뮬레이션 ---
 async def run_data_simulation():
     global robot_x, robot_y, battery, current_mode, current_linear, current_angular
-    
     tick = 0
-    
     while True:
         # --- [자동 주행 로직] ---
         if current_mode == 'auto':
@@ -211,7 +216,7 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
 
     try:
-        logger.info("🚀 로봇 시뮬레이터 시작 (SSH Tunnel Mode: 9999)")
+        logger.info("🚀 로봇 시뮬레이터 시작")
         loop.create_task(run_data_simulation())
         loop.create_task(run_webrtc())
         loop.run_forever()

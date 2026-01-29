@@ -1,22 +1,25 @@
 import React, { useEffect, useState } from 'react';
-// import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SocketTest = () => {
   const [receivedMessage, setReceivedMessage] = useState("아직 메시지 없음");
   const [stompClient, setStompClient] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
-    // 1. 연결할 주소 설정 (http:// 입니다! ws:// 아님)
-    const socket = new WebSocket('wss://i14c203.p.ssafy.io/ws');
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+    const socket = new WebSocket(wsUrl);
     const client = Stomp.over(socket);
 
     // 2. 연결 시도
     client.connect({}, (frame) => {
       console.log('✅ 웹소켓 연결 성공!', frame);
 
+      const userId = user?.id || 1;
+
       // 3. 구독 (서버가 보내는 메시지 듣기)
-      client.subscribe('/sub/test', (response) => {
+      client.subscribe(`/sub/${userId}/test`, (response) => {
         console.log('📩 서버에서 온 메시지:', response.body);
         setReceivedMessage(response.body);
       });
@@ -30,13 +33,19 @@ const SocketTest = () => {
     return () => {
       if (client) client.disconnect();
     };
-  }, []);
+  }, [user]);
 
   const sendMessage = () => {
-    if (stompClient) {
+    if (stompClient && user?.id) {
+      const payload = {
+        userId: user.id,
+        content: "Hello Robot!"
+      };
       // 4. 메시지 전송 (발행)
-      stompClient.send("/pub/test", {}, "Hello Robot!");
-      console.log('📤 메시지 보냄: Hello Robot!');
+      stompClient.send("/pub/test", {}, JSON.stringify(payload));
+      console.log('📤 메시지 보냄:', payload);
+    } else {
+      console.log('📤 메시지 보냄:', payload);
     }
   };
 

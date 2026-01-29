@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom'; // ✅ BrowserRouter(Router) 제거됨
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Providers
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -91,18 +91,13 @@ const AppRoutes = () => {
 
 const App = () => {
   return (
-    // ✅ Router와 Toaster는 main.jsx에 있으므로 여기서는 제거했습니다.
     <AuthProvider> 
       <NotificationProvider>
         <RobotProvider>
           <CatProvider>
-            
-            {/* Router 제거됨 */}
             <div className="min-h-screen bg-gray-50 text-gray-900 font-sans antialiased">
               <AppRoutes />
             </div>
-            {/* Router 제거됨 */}
-
           </CatProvider>
         </RobotProvider>
       </NotificationProvider>

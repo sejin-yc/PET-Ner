@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext'; // 경로 확인 필요 (보통 ../contexts/AuthContext)
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, User, ArrowRight, Loader2, Bot } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,11 +10,8 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  // 🚨 수정 1: signup 대신 register로 이름 변경!
   const { login, register } = useAuth(); 
   const navigate = useNavigate();
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -24,20 +21,15 @@ const Login = () => {
         // === 로그인 시도 ===
         const success = await login(email, password);
         if (success) {
-          // toast는 AuthContext 안에서도 띄우고 있으니 중복되면 여기서 제거해도 됩니다.
           navigate('/');
         }
       } else {
         // === 회원가입 시도 ===
-        
-        // 🚨 수정 2: 데이터를 객체 하나로 묶어서 보내야 함!
         const userData = {
           email: email,
           password: password,
           name: name
         };
-
-        // 🚨 수정 3: signup(...) 대신 register(userData) 호출
         const success = await register(userData);
         
         if (success) {
@@ -47,7 +39,6 @@ const Login = () => {
         }
       }
     } catch (error) {
-      // AuthContext 내부에서 에러 처리를 하고 있으므로 여기서는 로그만 찍거나 생략 가능
       console.error("Login Page Error:", error);
     } finally {
       setIsLoading(false);

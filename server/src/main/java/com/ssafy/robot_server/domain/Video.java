@@ -7,7 +7,6 @@ import lombok.Builder;            // ✅ 추가
 import lombok.Data;
 import lombok.NoArgsConstructor;  // ✅ 필수 (JPA 에러 방지)
 import org.hibernate.annotations.CreationTimestamp;
-import java.time.LocalDateTime;
 
 @Entity
 @Data

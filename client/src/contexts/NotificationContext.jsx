@@ -1,24 +1,39 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
 
 export const NotificationProvider = ({ children }) => {
-  // ✅ 1. 초기화 시 LocalStorage에서 불러오기 (새로고침 해결)
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('notifications');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // ✅ 2. 알림이 변경될 때마다 LocalStorage에 저장
   useEffect(() => {
-    localStorage.setItem('notifications', JSON.stringify(notifications));
-    // 안 읽은 개수 업데이트
-    const count = notifications.filter(n => !n.isRead).length;
-    setUnreadCount(count);
-  }, [notifications]);
+    if (!user || !user.id) {
+      setNotifications([]);
+      return;
+    }
+
+    const storageKey = `notifications_${user.id}`;
+    const saved = localStorage.getItem(storageKey);
+
+    if (saved) {
+      setNotifications(JSON.parse(saved));
+    } else {
+      setNotifications([]);
+    }
+  }, [user]);
+
+    useEffect(() => {
+      if (!user || !user.id) return;
+
+      const storageKey = `notifications_${user.id}`;
+      localStorage.setItem(storageKey, JSON.stringify(notifications));
+
+      const count = notifications.filter(n => !n.isRead).length;
+      setUnreadCount(count);
+    }, [notifications, user]);
 
   // 알림 추가 함수
   const addNotification = ({ type, title, message, link = null }) => {

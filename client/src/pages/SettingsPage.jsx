@@ -16,7 +16,7 @@ const SettingsPage = () => {
   // 상태 2: 설정 폼 데이터
   const [name, setName] = useState(user?.name || '');
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
-  const [profileImage, setProfileImage] = useState(null); // (추후 구현용 미리보기)
+  const [profileImage, setProfileImage] = useState(null);
 
   // 🔐 1. 비밀번호 확인 핸들러 (Gate)
   const handleVerifyPassword = async (e) => {
@@ -52,7 +52,6 @@ const SettingsPage = () => {
   const handleSaveProfile = async () => {
     if (!name.trim()) return toast.error("이름을 입력해주세요.");
     await updateProfile(name);
-    // 사진 업로드 로직은 백엔드 파일 서버 구현 후 추가 예정
   };
 
   // 🔑 4. 비밀번호 변경
