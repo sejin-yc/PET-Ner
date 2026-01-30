@@ -45,16 +45,18 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/users/login", "/api/users", "/api/users/login", "/users").permitAll()
+                // .requestMatchers("/users/login", "/api/users", "/api/users/login", "/users").permitAll()
 
-                .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
+                // .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
                 
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                // .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
                 
-                .requestMatchers("/uploads/**").permitAll()
+                // .requestMatchers("/uploads/**").permitAll()
 
                 // 나머지는 인증 필요
-                .anyRequest().authenticated()
+                // .anyRequest().authenticated()
+
+                .requestMatchers("/**").permitAll()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
