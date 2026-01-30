@@ -5,17 +5,32 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.robot_server.dto.RobotCommand;
 import com.ssafy.robot_server.service.MqttService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@Controller
+@RestController
+@RequestMapping({"/robot", "/api/robot"})
 @RequiredArgsConstructor
 public class RobotController {
 
     private final MqttService mqttService;
     private final ObjectMapper objectMapper;
+
+    @GetMapping("/state")
+    public ResponseEntity<?> getRobotState(@RequestParam(value = "userId", required = false) String userId) {
+        System.out.println("📥 HTTP 요청 수신: 로봇 상태 조회 (User: " + userId + ")");
+        Map<String, Object> mockState = Map.of(
+            "status", "standby",      // 로봇 상태 (standby, moving, charging)
+            "battery", 85,            // 배터리 잔량
+            "location", "거실",       // 현재 위치
+            "isCameraOn", false       // 카메라 작동 여부
+        );
+
+        return ResponseEntity.ok(mockState);
+    }
 
     // 1. 프론트엔드 명령 수신 (웹 -> 로봇)
     @MessageMapping("/robot/control")

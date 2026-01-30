@@ -1,15 +1,20 @@
 package com.ssafy.robot_server.controller;
 
 import com.ssafy.robot_server.domain.Cat;
+import com.ssafy.robot_server.domain.User;
 import com.ssafy.robot_server.repository.CatRepository;
+import com.ssafy.robot_server.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping({"/cat", "/cats", "/api/cat", "/api/cats"})
@@ -18,6 +23,7 @@ import java.util.List;
 public class CatController {
 
     private final CatRepository catRepository;
+    private final UserRepository userRepository;
 
     // 1. 내 고양이 목록 조회
     @GetMapping
@@ -32,7 +38,19 @@ public class CatController {
     public ResponseEntity<?> addCat(@RequestBody Cat cat) {
         // 유효성 검사: 주인이 누구인지 모르면 등록 거부
         if (cat.getUserId() == null) {
-            return ResponseEntity.badRequest().body("userId(사용자 ID)는 필수입니다.");
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated()) {
+                String email = authentication.getName();
+                Optional<User> user = userRepository.findByEmail(email);
+
+                if (user.isPresent()) {
+                    cat.setUserId(user.get().getId());
+                } else {
+                    return ResponseEntity.badRequest().body("로그인 정보를 찾을 수 없습니다.");
+                }
+            } else {
+                return ResponseEntity.status(401).body("로그인이 필요합니다.");
+            }
         }
 
         cat.setId(null);
