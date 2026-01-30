@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRobot } from '../contexts/RobotContext';
 import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
-import DashboardSkeleton from '../components/skeletons/DashboardSkeleton'; // 경로 확인 필요
-import StreamPanel from '../components/StreamPanel'; // ✅ 우리가 만든 완벽한 영상 패널 가져오기
+import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
+import StreamPanel from '../components/StreamPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 
 const Dashboard = () => {
