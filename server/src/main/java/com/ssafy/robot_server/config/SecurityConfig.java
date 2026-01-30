@@ -33,7 +33,6 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
-    // 🔐 비밀번호 암호화 (BCrypt) - 이 친구 때문에 DB에 평문 비번(1234)이 있으면 로그인 안 됨!
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -46,9 +45,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/user/**", "/user/register", "/user/login").permitAll()
-
-                .requestMatchers("/api/**").permitAll()
+                .requestMatchers("/user/login", "/user/register", "/user/login").permitAll()
 
                 .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
                 

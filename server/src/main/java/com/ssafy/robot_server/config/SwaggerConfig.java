@@ -5,8 +5,11 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @Configuration
 public class SwaggerConfig {
@@ -31,7 +34,11 @@ public class SwaggerConfig {
                         .title("🤖 지능형 로봇 관제 시스템 API")
                         .description("로봇 제어, 영상 스트리밍, 로그 관리를 위한 백엔드 API 명세서입니다.")
                         .version("v1.0.0"))
-                .addSecurityItem(securityRequirement) // 이 부분이 있어야 모든 API에 자물쇠가 달립니다.
-                .components(components);
+                .addSecurityItem(securityRequirement)
+                .components(components)
+                .servers(List.of(
+                        new Server().url("http://localhost:8080").description("로컬 개발 환경 (Local)"),
+                        new Server().url("https://i14c203.p.ssafy.io").description("배포 서버 (Production)")
+                ));
     }
 }

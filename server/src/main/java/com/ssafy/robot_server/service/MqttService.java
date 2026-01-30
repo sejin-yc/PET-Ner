@@ -15,8 +15,6 @@ import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -33,41 +31,48 @@ public class MqttService {
     public void handleMessage(String payload, @Header(MqttHeaders.RECEIVED_TOPIC) String topic) {
         try {
             JsonNode json = objectMapper.readTree(payload);
+            if (!json.has("userId")) return;
+
+            Long userId = json.get("userId").asLong();
 
             // 1. 로봇 상태 수신
-            if ("/sub/robot/status".equals(topic)) {
+            if (topic.endsWith("/status")) {
                 RobotStatus s = RobotStatus.builder()
+                        .userId(userId)
                         .batteryLevel(json.path("batteryLevel").asInt(0))
                         .temperature(json.path("temperature").asDouble(0.0))
                         .isCharging(json.path("charging").asBoolean(false))
                         .x(json.path("x").asDouble(0.0))
                         .y(json.path("y").asDouble(0.0))
                         .mode(json.path("mode").asText("unknown"))
-                        .timestamp(LocalDateTime.now())
                         .build();
                 
                 statusRepository.save(s);
-                messagingTemplate.convertAndSend("/sub/robot/status", s);
+
+                String webSocketDest = "/sub/robot" + userId + "/status";
+                messagingTemplate.convertAndSend(webSocketDest, s);
 
             // 2. 로봇 위치(좌표) 수신
-            } else if ("/sub/robot/pose".equals(topic)) {
+            } else if (topic.endsWith("/pose")) {
                 RobotPose p = RobotPose.builder()
+                        .userId(userId)
                         .x(json.path("x").asDouble(0.0))
                         .y(json.path("y").asDouble(0.0))
-                        .theta(json.path("theta").asDouble(0.0)) // ✅ 각도 추가
+                        .theta(json.path("theta").asDouble(0.0))
                         .build();
+
                 poseRepository.save(p);
-                // (선택사항) 지도 실시간 갱신을 원하면 웹소켓 추가 가능
-                messagingTemplate.convertAndSend("/sub/robot/pose", p);
+
+                String webSocketDest = "/sub/robot" + userId + "/pose";
+                messagingTemplate.convertAndSend(webSocketDest, p);
 
             // 3. WebRTC 관련 (로봇 -> 웹)
-            } else if ("/sub/peer/offer".equals(topic)){
-                log.info("📹 WebRTC Offer 수신 (로봇 -> 웹)");
-                messagingTemplate.convertAndSend("/sub/peer/offer", payload); // 원본 JSON 전달
-
-            } else if ("/sub/peer/ice".equals(topic)) { // ✅ [중요] ICE Candidate 추가
-                log.info("❄️ WebRTC ICE Candidate 수신 (로봇 -> 웹)");
-                messagingTemplate.convertAndSend("/sub/peer/ice", payload);
+            } else if (topic.endsWith("/offer")){
+                messagingTemplate.convertAndSend("/sub/peer" + userId + "/offer", payload); // 원본 JSON 전달
+                
+            // 4. WebRTC ICE Candidate (로봇 -> 웹)
+            } else if (topic.endsWith("/ice")) {
+                messagingTemplate.convertAndSend("/sub/peer" + userId + "/ice", payload);
             }
 
         } catch (Exception e) {

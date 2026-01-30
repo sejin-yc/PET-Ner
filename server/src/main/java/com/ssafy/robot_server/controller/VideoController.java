@@ -4,27 +4,26 @@ import com.ssafy.robot_server.domain.Video;
 import com.ssafy.robot_server.repository.VideoRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-// import java.time.LocalDateTime;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
 @RequestMapping("/user/videos")
-@RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
+@RequiredArgsConstructor
 @Tag(name = "5. 영상 관리", description = "특이행동/사건사고 영상 API")
 public class VideoController {
 
-    private final VideoRepository videoRepository; // ✅ final 선언
+    private final VideoRepository videoRepository;
 
     // 1. 목록 조회
     @GetMapping
     @Operation(summary = "영상 목록 조회", description = "최신순으로 정렬하여 반환합니다.")
     public ResponseEntity<List<Video>> getVideos(@RequestParam Long userId) {
-        // 🚨 Repository 인터페이스에 이 메소드가 없으면 에러 납니다!
-        // List<Video> findByUserIdOrderByCreatedAtDesc(Long userId);
         return ResponseEntity.ok(videoRepository.findByUserIdOrderByCreatedAtDesc(userId));
     }
 
@@ -44,8 +43,8 @@ public class VideoController {
 
         // 생성 시간 자동 설정 (없을 경우)
         if (video.getCreatedAt() == null) {
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-            video.setCreatedAt(java.time.LocalDateTime.now().format(formatter));
+            String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            video.setCreatedAt(now);
         }
 
         return ResponseEntity.ok(videoRepository.save(video));

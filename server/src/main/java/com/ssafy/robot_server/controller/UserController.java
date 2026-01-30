@@ -8,14 +8,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder; // ✅ 필수 추가
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-// @RequestMapping("/api/users")
 @RequestMapping("user")
 @RequiredArgsConstructor
 @Tag(name = "1. 유저 관리", description = "회원가입/로그인 API")
@@ -23,9 +23,8 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
-    private final PasswordEncoder passwordEncoder; // ✅ 암호화 도구 주입
+    private final PasswordEncoder passwordEncoder;
 
-    // ✅ 오타 수정 (passward -> password)
     @Data
     public static class LoginRequest{
         private String email;
@@ -45,15 +44,19 @@ public class UserController {
     }
 
     // 1. 회원가입
-    @PostMapping
+    @PostMapping("/register")
     @Operation(summary = "회원가입")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("이미 존재하는 이메일입니다.");
         }
         
-        // ✅ 비밀번호 암호화 후 저장 (필수!)
+        // 비밀번호 암호화 후 저장
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+
+        if (user.getRoles() == null || user.getRoles().isEmpty()) {
+            user.setRoles(Collections.singletonList("ROLE_USER"));
+        }
         
         User savedUser = userRepository.save(user);
         return ResponseEntity.ok(savedUser);
@@ -65,7 +68,7 @@ public class UserController {
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
-        // ✅ 암호화된 비밀번호 비교 (matches 함수 사용 필수)
+        // ✅ 암호화된 비밀번호 비교
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(401).body("이메일 또는 비밀번호가 잘못되었습니다.");
         }
@@ -97,7 +100,6 @@ public class UserController {
     public ResponseEntity<?> verifyPassword(@RequestBody PasswordRequest request) {
         User user = userRepository.findById(request.getUserId()).orElse(null);
         
-        // ✅ 여기도 matches 사용
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(401).body("비밀번호가 일치하지 않습니다.");
         }
@@ -121,7 +123,7 @@ public class UserController {
         return ResponseEntity.ok("비밀번호가 변경되었습니다.");
     }
 
-    // ✅ [추가됨] 6. 회원 탈퇴 (프론트엔드 SettingsPage에서 호출함)
+    // 6. 회원 탈퇴
     @DeleteMapping("/{id}")
     @Operation(summary = "회원 탈퇴")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {

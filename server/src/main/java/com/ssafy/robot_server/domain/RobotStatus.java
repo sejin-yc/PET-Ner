@@ -2,15 +2,15 @@ package com.ssafy.robot_server.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp; // ✅ 이거 추가
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Getter @Setter
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "robot_status") // ✅ 테이블 이름 명시 권장
+@Table(name = "robot_status")
 public class RobotStatus {
 
     @Id
@@ -28,7 +28,6 @@ public class RobotStatus {
     private Double y;
     private String mode;
     
-    // ✅ [수정] 누가, 어떻게 저장하든 자동으로 현재 시간이 찍히도록 설정
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime timestamp;
@@ -41,6 +40,5 @@ public class RobotStatus {
         this.mode = mode;
         this.temperature = 0.0;
         this.isCharging = false;
-        // this.timestamp = LocalDateTime.now(); // @CreationTimestamp가 있으므로 제거해도 됨
     }
 }

@@ -2,25 +2,21 @@
 .DS_Store
 .vscode/
 .idea/
+*.iml
 *.log
 
-# === Frontend (Client) ===
-client/node_modules/
-client/dist/
-client/.env
-client/.env.local
-client/coverage/
+# === Gradle Build ===
+.gradle/
+build/
+out/
+bin/
+target/
 
-# === Backend (Server - Gradle) ===
-server/.gradle/
-server/build/
-server/out/
-server/bin/
-server/target/
-!server/gradle/wrapper/gradle-wrapper.jar
+# === Gradle Wrapper ===
+!gradle/wrapper/gradle-wrapper.jar
 
-# --- 🦟 MQTT (Mosquitto) 데이터 (추가!) ---
-mosquitto/data/
-mosquitto/log/
-*.db
+# === Spring Boot Logs ===
+logs/
 *.log
+
+src/main/resources/application.yml

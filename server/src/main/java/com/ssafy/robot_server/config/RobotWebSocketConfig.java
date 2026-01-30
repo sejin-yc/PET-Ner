@@ -9,7 +9,7 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
 @Configuration
-@EnableWebSocket // 👈 중요: 순수 WebSocket 활성화
+@EnableWebSocket
 @RequiredArgsConstructor
 public class RobotWebSocketConfig implements WebSocketConfigurer {
 

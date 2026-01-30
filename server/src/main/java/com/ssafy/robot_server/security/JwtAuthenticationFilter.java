@@ -5,20 +5,21 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource; // ✅ 추가
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.stream.Collectors;
 
 @Component
-@RequiredArgsConstructor // ✅ 생성자 주입 자동화
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
@@ -34,20 +35,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = tokenProvider.getEmailFromToken(token);
             
             userRepository.findByEmail(email).ifPresent(user -> {
+                var authorities = user.getRoles().stream()
+                                      . map(SimpleGrantedAuthority::new)
+                                      .collect(Collectors.toList());
+
                 UserDetails userDetails = new org.springframework.security.core.userdetails.User(
-                        user.getEmail(), user.getPassword(), Collections.emptyList());
+                        user.getEmail(),
+                        user.getPassword(),
+                        authorities
+                );
                 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 
-                // ✅ [추가] 현재 요청의 상세 정보(IP, 세션 등)를 설정
-                // 나중에 로그를 확인할 때 어떤 IP에서 온 요청인지 추적하기 쉬워집니다.
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             });
         }
-
         filterChain.doFilter(request, response);
     }
 

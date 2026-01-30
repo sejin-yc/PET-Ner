@@ -9,16 +9,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional; // ✅ 트랜잭션 필수
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-// @RequestMapping("/api/notifications")
 @RequestMapping("/user/notifications")
-@RequiredArgsConstructor // ✅ 생성자 주입
+@RequiredArgsConstructor
 @Tag(name = "4. 알림 관리", description = "알림 조회/생성/읽음처리 API")
 public class NotificationController {
 
@@ -62,8 +61,6 @@ public class NotificationController {
         noti.setPriority(request.getPriority() != null ? request.getPriority() : "INFO"); // 기본값 설정
         noti.setRead(false);
         noti.setUser(user);
-        
-        // 시간 설정 (Entity에 @CreationTimestamp가 없으면 여기서 필수)
         noti.setTimestamp(LocalDateTime.now());
 
         notificationRepository.save(noti);
@@ -86,12 +83,11 @@ public class NotificationController {
     // 4. 모두 읽음 처리
     @PutMapping("/read-all")
     @Operation(summary = "모든 알림 읽음 처리")
-    @Transactional // ✅ 여러 개를 수정하므로 트랜잭션 추천
+    @Transactional
     public ResponseEntity<?> markAllAsRead(@RequestParam Long userId) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return ResponseEntity.badRequest().body("유저 없음");
         
-        // 벌크 업데이트 쿼리를 만드는 게 성능상 더 좋지만, 지금은 루프도 괜찮습니다.
         List<Notification> list = notificationRepository.findByUserOrderByTimestampDesc(user);
         for (Notification n : list) {
             n.setRead(true);
@@ -114,7 +110,7 @@ public class NotificationController {
     // 6. 전체 삭제
     @DeleteMapping("/all")
     @Operation(summary = "알림 전체 삭제")
-    @Transactional // 🚨 [매우 중요] deleteByUser 같은 커스텀 삭제는 트랜잭션 필수!
+    @Transactional
     public ResponseEntity<?> deleteAllNotifications(@RequestParam Long userId) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return ResponseEntity.badRequest().body("유저 없음");

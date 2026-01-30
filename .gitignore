@@ -5,9 +5,11 @@ Thumb.db
 .idea/
 *.swp
 *.log
+*.iml
 
 # === 🔐 보안 및 환경 변수 (절대 금지!) ===
 *.pem
+*.key
 I14C203T.pem
 .env
 .env.local
@@ -16,12 +18,11 @@ I14C203T.pem
 # === 🐳 Docker 및 인프라 ===
 postgres_data/
 nginx/ssl/
+
 # MQTT 데이터 및 로그
 mosquitto/data/
 mosquitto/log/
 *.db
-mosquitto/data/*.db
-mosquitto/log/*.log
 
 # === ☕ Backend (Spring Boot) ===
 server/.gradle/
@@ -33,7 +34,9 @@ server/.classpath
 server/.project
 server/.factorypath
 server/HELP.md
-# 민감한 정보가 포함된 설정 파일을 무시하고 싶을 때 주석 해제
+server/logs
+
+!server/gradle/wrapper/gradle-wrapper.jar
 # server/src/main/resources/application-prod.yml
 
 # === ⚛️ Frontend (React) ===
@@ -44,6 +47,7 @@ client/.env.local
 client/npm-debug.log*
 client/yarn-debug.log*
 client/yarn-error.log*
+client/.pnp.*
 
 # === 🐍 Fake Robot (Python) ===
 fake_robot/venv/
@@ -52,6 +56,7 @@ fake_robot/env/
 fake_robot/__pycache__/
 fake_robot/*.pyc
 fake_robot/.pytest_cache/
+fake_robot/.ipynb_checkpoints/
 
 # 환경변수 파일 무시 (보안)
 .env

@@ -24,8 +24,6 @@ public class LogController {
     @GetMapping
     @Operation(summary = "로그 목록 조회", description = "특정 유저의 로그를 최신순으로 조회합니다.")
     public ResponseEntity<List<Log>> getLogs(@RequestParam Long userId) {
-        // Repository에 findByUserIdOrderByCreatedAtDesc 메소드가 있어야 합니다.
-        // 만약 없다면 Repository 인터페이스에 추가해 주세요!
         return ResponseEntity.ok(logRepository.findByUserIdOrderByCreatedAtDesc(userId));
     }
 

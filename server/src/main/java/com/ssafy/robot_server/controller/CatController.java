@@ -4,7 +4,7 @@ import com.ssafy.robot_server.domain.Cat;
 import com.ssafy.robot_server.repository.CatRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor; // ✅ Lombok 추가
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,13 +12,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-// @RequestMapping("/api/cats")
 @RequestMapping("/user/cats")
-@RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
+@RequiredArgsConstructor
 @Tag(name = "3. 고양이 관리", description = "반려묘 등록/조회/삭제 API")
 public class CatController {
 
-    private final CatRepository catRepository; // ✅ final로 변경 (안전성 UP)
+    private final CatRepository catRepository;
 
     // 1. 내 고양이 목록 조회
     @GetMapping
@@ -47,7 +46,8 @@ public class CatController {
         
         cat.setLastDetected(LocalDateTime.now());
 
-        return ResponseEntity.ok(catRepository.save(cat));
+        Cat savedCat = catRepository.save(cat);
+        return ResponseEntity.ok(savedCat);
     }
 
     // 3. 고양이 삭제

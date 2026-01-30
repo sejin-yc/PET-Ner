@@ -2,33 +2,42 @@ server:
   port: 8080 # 서버 포트 번호
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/robot_db
+    url: jdbc:postgresql://postgres:5432/robot_db
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      # update: 테이블 유지 및 변경사항 반영
-      # create: 매번 테이블 삭제 후 재생성 (주의!)
       ddl-auto: update 
-    show-sql: true # ✅ 콘솔에 SQL 문 출력
+    show-sql: true
     properties:
       hibernate:
-        format_sql: true # SQL 예쁘게 출력
+        format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
         # 쿼리에 주석 포함하여 디버깅 용이하게 설정
         use_sql_comments: true 
+    open-in-view: false
 
-# JWT 설정 (보안을 위해 비밀키는 32자 이상의 긴 문자열 유지)
+# JWT 설정
 jwt:
   secret: ${JWT_SECRET}
 
 # MQTT 설정
-# 브로커가 실행 중이 아니면 서버 기동 시 에러가 날 수 있습니다.
 mqtt:
-  # broker-url: tcp://mqtt_broker:1883 # 도커 환경이 아니면 localhost로 수정
-  broker-url: tcp://localhost:1883
-  client-id: spring-boot-server-local
+  broker-url: tcp://mosquitto:1883
+  client-id: spring-boot-server-docker
   default-topic: "/#" # 필요한 토픽 범위로 한정하는 것이 효율적
+  username: ssafy
+  password: ssafy1
+
+logging:
+  level:
+    root: INFO
+    com.ssafy.robot_server: DEBUG

@@ -3,14 +3,15 @@ package com.ssafy.robot_server.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
-import lombok.extern.slf4j.Slf4j; // ✅ 로그 기록용 추가
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 
-@Slf4j // ✅ 로그 어노테이션 추가
+@Slf4j
 @Component
 public class JwtTokenProvider {
 
@@ -22,17 +23,15 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        // ✅ secretKey가 너무 짧으면 여기서 에러가 날 수 있으니 주의하세요!
-        this.key = Keys.hmacShaKeyFor(secretKey.getBytes());
+        this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
     // 1. 토큰 생성
     public String createToken(String email) {
-        Claims claims = Jwts.claims().setSubject(email);
         Date now = new Date();
 
         return Jwts.builder()
-                .setClaims(claims)
+                .setSubject(email)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + EXPIRATION_TIME))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -45,7 +44,7 @@ public class JwtTokenProvider {
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
-                .getBody() // 최신 버전은 getPayload() 권장
+                .getBody()
                 .getSubject();
     }
 

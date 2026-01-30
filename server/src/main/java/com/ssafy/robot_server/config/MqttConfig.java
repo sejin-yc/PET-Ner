@@ -27,13 +27,29 @@ public class MqttConfig {
     @Value("${mqtt.default-topic}")
     private String defaultTopic;
 
+    @Value("${mqtt.username}")
+    private String username;
+
+    @Value("${mqtt.password}")
+    private String password;
+
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         MqttConnectOptions options = new MqttConnectOptions();
+
         options.setServerURIs(new String[]{brokerUrl});
+
+        if (username != null && !username.isBlank()) {
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+        }
+
         options.setCleanSession(true); // 재접속 시 이전 세션 초기화
         options.setAutomaticReconnect(true); // 자동 재접속 활성화
+        options.setKeepAliveInterval(60);
+        options.setConnectionTimeout(30);
+
         factory.setConnectionOptions(options);
         return factory;
     }
@@ -48,7 +64,6 @@ public class MqttConfig {
 
     @Bean
     public MessageProducer inbound() {
-        // 🚨 [수정 포인트 1] ID 뒤에 "_in"을 붙여서 겹치지 않게 함!
         MqttPahoMessageDrivenChannelAdapter adapter =
                 new MqttPahoMessageDrivenChannelAdapter(
                     clientId + "_in",
@@ -74,7 +89,6 @@ public class MqttConfig {
     @Bean
     @ServiceActivator(inputChannel = "mqttOutboundChannel")
     public MessageHandler mqttOutbound() {
-        // 🚨 [수정 포인트 2] ID 뒤에 "_out"을 붙여서 겹치지 않게 함!
         MqttPahoMessageHandler messageHandler =
                 new MqttPahoMessageHandler(clientId + "_out", mqttClientFactory());
         
