@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRobot } from '../contexts/RobotContext';
 import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
-import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import StreamPanel from '../components/StreamPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 
@@ -14,7 +13,6 @@ const Dashboard = () => {
   } = useRobot();
 
   const [ttsText, setTtsText] = useState("");
-  const [showSkeleton, setShowSkeleton] = useState(true);
   
   // 로딩 스켈레톤 처리
   useEffect(() => {
