@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRobot } from '@/contexts/RobotContext';
 import { ClipboardList, Trash2, MapPin, Clock, Search, Calendar } from 'lucide-react';
-import LogCharts from '@/components/charts/LogCharts'; // ✅ 차트 컴포넌트 추가
+import LogCharts from '@/components/charts/LogCharts';
 
 const LogsPage = () => {
   const { logs, deleteLog, addTestLog } = useRobot();
@@ -41,14 +41,14 @@ const LogsPage = () => {
 
       {/* 4. 로그 리스트 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {logs.length === 0 ? (
+        {!logs || logs?.length === 0 ? (
           <div className="p-12 text-center text-gray-400 flex flex-col items-center">
             <ClipboardList size={48} className="mb-3 opacity-20" />
             <p>아직 생성된 로그가 없습니다.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {logs.map((log) => (
+            {logs?.map((log) => (
               <div key={log.id} className="p-5 hover:bg-gray-50 transition-colors flex flex-col md:flex-row md:items-center gap-4 group">
                 {/* 아이콘 상태 */}
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 

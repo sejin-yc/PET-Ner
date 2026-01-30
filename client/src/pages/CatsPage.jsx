@@ -3,7 +3,7 @@ import { useCats } from '@/contexts/PetContext';
 import { Plus, Trash2, X, Cat as CatIcon, FileText } from 'lucide-react';
 
 const CatsPage = () => {
-  const { cats, addCat, deleteCat } = useCats(); // Context에서 함수 가져오기
+  const { cats, addCat, deleteCat } = useCats();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // 새 고양이 입력 폼 상태
@@ -48,12 +48,12 @@ const CatsPage = () => {
 
       {/* 고양이 리스트 (카드 형태) */}
       <div className="space-y-4">
-        {cats.length === 0 ? (
+        {!cats || cats.length === 0 ? (
           <div className="text-center py-20 text-gray-400 bg-white rounded-lg border border-dashed">
             등록된 반려동물이 없습니다. 우측 상단 버튼을 눌러 등록해주세요.
           </div>
         ) : (
-          cats.map(cat => (
+          cats?.map(cat => (
             <div key={cat.id} className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
