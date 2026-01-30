@@ -4,7 +4,6 @@ import axios from 'axios';
 import { toast } from 'sonner';
 
 const AuthContext = createContext();
-const BASE_URL = import.meta.env.VITE_API_URL;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -24,7 +23,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       // ✅ api 대신 axios 사용 (옛날 토큰 간섭 방지)
-      const response = await axios.post(`${BASE_URL}/users/login`, { email, password });
+      const response = await axios.post(`/api/users/login`, { email, password });
       const { token: rawToken, user: receivedUser } = response.data;
       const pureToken = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
       
@@ -46,7 +45,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       // ✅ 순수 axios 사용! 토큰 없이 요청 보냄
-      await axios.post(`${BASE_URL}/users`, userData);
+      await axios.post(`/api/users`, userData);
       
       toast.success("회원가입 성공! 로그인해주세요.");
       return true;
