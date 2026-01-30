@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/user/cats")
+@RequestMapping({"/cat", "/cats", "/api/cat", "/api/cats"})
 @RequiredArgsConstructor
 @Tag(name = "3. 고양이 관리", description = "반려묘 등록/조회/삭제 API")
 public class CatController {
