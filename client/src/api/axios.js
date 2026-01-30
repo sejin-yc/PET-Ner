@@ -1,13 +1,13 @@
 import axios from 'axios';
 
 // 1. Axios 인스턴스 생성
-const api = axios.create({
+const instance = axios.create({
   // Server Connect
-  baseURL: import.meta.env.VITE_API_URL,
-
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // 2. 요청 인터셉터 (Request Interceptor) 설정
@@ -20,7 +20,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
