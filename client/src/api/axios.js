@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // 1. Axios 인스턴스 생성
-const instance = axios.create({
+const api = axios.create({
   // Server Connect
   baseURL: '/api',
   headers: {
