@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping({"/user", "/api/user"})
 @RequiredArgsConstructor
 @Tag(name = "1. 유저 관리", description = "회원가입/로그인 API")
 public class UserController {
