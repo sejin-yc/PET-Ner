@@ -28,6 +28,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+                
+        System.out.println("=============================================");
+        System.out.println(">>> [FILTER 요청 감지] URI: " + request.getRequestURI());
+        System.out.println(">>> [FILTER 요청 메소드] Method: " + request.getMethod());
+        System.out.println("=============================================");
         
         String token = parseBearerToken(request);
 
