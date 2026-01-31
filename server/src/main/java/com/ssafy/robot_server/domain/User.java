@@ -39,4 +39,7 @@ public class User {
     @ElementCollection(fetch = FetchType.EAGER)
     @Builder.Default // 빌더 패턴 사용 시 기본값 적용
     private List<String> roles = new ArrayList<>();
+
+    @Builder.Default
+    private boolean isVoiceTrained = false;
 }

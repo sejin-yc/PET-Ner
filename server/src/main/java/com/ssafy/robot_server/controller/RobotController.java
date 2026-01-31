@@ -4,14 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.robot_server.dto.RobotCommand;
 import com.ssafy.robot_server.service.MqttService;
+import com.ssafy.robot_server.domain.User;
+import com.ssafy.robot_server.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-
-
 
 @RestController
 @RequestMapping({"/robot", "/api/robot"})
@@ -20,6 +20,7 @@ public class RobotController {
 
     private final MqttService mqttService;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @GetMapping("/state")
     public ResponseEntity<?> getRobotState(@RequestParam(value = "userId", required = false) String userId) {
@@ -58,6 +59,22 @@ public class RobotController {
     @PostMapping("/training/complete")
     public ResponseEntity<?> completeTraining(@RequestBody Map<String, Object> data) {
         System.out.println("💾 목소리 학습 데이터 저장 요청: " + data);
+
+        Long userId = null;
+        try {
+            userId = Long.valueOf(String.valueOf(data.get("userId")));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("userId 형식이 잘못되었습니다.");
+        }
+
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return ResponseEntity.badRequest().body("존재하지 않는 유저입니다.");
+        }
+
+        user.setVoiceTrained(true);
+        userRepository.save(user);
+        
         return ResponseEntity.ok("학습 데이터 저장 완료");
     }
     

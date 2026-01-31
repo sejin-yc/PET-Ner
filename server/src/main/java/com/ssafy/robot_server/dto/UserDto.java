@@ -20,6 +20,8 @@ public class UserDto {
     private String name;    // 이름
     private List<String> roles;
 
+    private boolean isVoiceTrained;
+
     public static UserDto from(User user) {
         if (user == null) return null;
 
@@ -28,7 +30,8 @@ public class UserDto {
             user.getEmail(),
             null, // 🚨 보안 중요: 회원가입 완료 후 응답에는 비밀번호를 비워서 보냄!
             user.getName(),
-            user.getRoles()
+            user.getRoles(),
+            user.isVoiceTrained()
         );
     }
 }
