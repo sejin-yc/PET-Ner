@@ -9,7 +9,7 @@ RUN gradle dependencies --no-daemon || return 0
 
 # 실제 소스 복사 및 빌드
 COPY src ./src
-RUN gradle bootJar -x test --no-daemon
+RUN gradle clean bootJar -x test --no-daemon
 
 # 실행 단계
 FROM eclipse-temurin:17-jdk-jammy
