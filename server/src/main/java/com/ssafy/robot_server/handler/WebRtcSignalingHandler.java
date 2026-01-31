@@ -6,7 +6,6 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,7 +44,7 @@ public class WebRtcSignalingHandler extends TextWebSocketHandler {
 
         if (userId == null || role == null) return;
 
-        WebSocketSession targetSession = null;
+        WebSocketSession targetSession;
         
         if ("robot".equalsIgnoreCase(role)) {
             targetSession = userSessions.get(userId);
@@ -54,13 +53,9 @@ public class WebRtcSignalingHandler extends TextWebSocketHandler {
         }
 
         if (targetSession != null && targetSession.isOpen()) {
-            try {
+            synchronized (targetSession) {
                 targetSession.sendMessage(message);
-            } catch (IOException e) {
-                System.err.println("전송 실패: " + e.getMessage());
             }
-        } else {
-            System.out.println("⚠️ 대상이 접속해 있지 않음 (User " + userId + ")");
         }
     }
 
