@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+
+
 @RestController
 @RequestMapping({"/robot", "/api/robot"})
 @RequiredArgsConstructor
@@ -32,6 +34,34 @@ public class RobotController {
         return ResponseEntity.ok(mockState);
     }
 
+    @PostMapping("/tts")
+    public ResponseEntity<?> sendTts(@RequestBody Map<String, String> payload) {
+        String userId = payload.get("userId");
+        String text = payload.get("text");
+        System.out.println("🗣️ TTS 요청: " + text + " (User: " + userId + ")");
+
+        if (userId != null && text != null) {
+            mqttService.sendCommand("robot/" + userId + "/control", "{\"type\": \"TTS\", \"text\": \"" + text + "\"}");
+        }
+        try {
+            Map<String, String> commandMap = Map.of("type", "TTS", "text", text);
+            String jsonCommand = objectMapper.writeValueAsString(commandMap);
+
+            mqttService.sendCommand("robot/" + userId + "/control", jsonCommand);
+            return ResponseEntity.ok("TTS 명령 전송 완료");
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("userId 또는 text가 누락되었습니다.");
+        }
+    }
+    
+    @PostMapping("/training/complete")
+    public ResponseEntity<?> completeTraining(@RequestBody Map<String, Object> data) {
+        System.out.println("💾 목소리 학습 데이터 저장 요청: " + data);
+        return ResponseEntity.ok("학습 데이터 저장 완료");
+    }
+    
+
     // 1. 프론트엔드 명령 수신 (웹 -> 로봇)
     @MessageMapping("/robot/control")
     public void handleControl(RobotCommand command) {
@@ -39,8 +69,6 @@ public class RobotController {
             System.err.println("❌ 명령 거부: UserID가 없습니다.");
             return;
         }
-
-        System.out.println("🕹️ 명령 수신: " + command.getUserId() + "): " + command.getType());
         
         try {
             // ✅ 객체를 안전하게 JSON 문자열로 변환
@@ -57,32 +85,23 @@ public class RobotController {
     // 2. WebRTC Answer 전달 (웹 -> 로봇)
     @MessageMapping("/peer/answer")
     public void handleAnswer(Map<String, Object> answerData) {
-        Long userId = extractUserId(answerData);
-        if (userId == null) return;
-
-        System.out.println("📡 WebRTC Answer 수신 -> User " + userId);
-        try {
-            String jsonAnswer = objectMapper.writeValueAsString(answerData);
-            String targetTopic = "robot/" + userId + "/signal";
-
-            mqttService.sendCommand(targetTopic, jsonAnswer);
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
+        sendSignalToRobot(answerData, "WebRTC Answer");
     }
 
     // ✅ [신규 추가] 3. WebRTC ICE Candidate 전달 (웹 -> 로봇)
     @MessageMapping("/peer/ice")
     public void handleIceCandidate(Map<String, Object> candidate) {
-        Long userId = extractUserId(candidate);
+        sendSignalToRobot(candidate, "WebRTC ICE Candidate");
+    }
+
+    private void sendSignalToRobot(Map<String, Object> data, String logType) {
+        Long userId = extractUserId(data);
         if (userId == null) return;
 
         try {
-            // 맵 데이터를 JSON으로 바꿔서 로봇에게 전달
-            String jsonCandidate = objectMapper.writeValueAsString(candidate);
+            String json = objectMapper.writeValueAsString(data);
             String targetTopic = "robot/" + userId + "/signal";
-
-            mqttService.sendCommand(targetTopic, jsonCandidate);
+            mqttService.sendCommand(targetTopic, json);
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }

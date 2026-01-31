@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/voice", "/voices", "/api/voice", "/api/voices"})
+@RequestMapping({"/video", "/videos", "/api/video", "/api/videos"})
 @RequiredArgsConstructor
 @Tag(name = "5. 영상 관리", description = "특이행동/사건사고 영상 API")
 public class VideoController {
