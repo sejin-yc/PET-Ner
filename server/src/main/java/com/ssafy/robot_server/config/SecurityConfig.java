@@ -45,13 +45,12 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/user/login", "/api/user/login", "/user/register", "/api/user/register").permitAll()
+                .requestMatchers("/user/**", "/api/user/**", "/users/**", "/api/users/**").permitAll()
+                .requestMatchers("/cat/**", "/api/cat/**", "/cats/**", "/api/cats/**", "/videos/**", "/api/videos/**", "/uploads/**").permitAll()
+                .requestMatchers("/robot/**", "/api/robot/**").permitAll()
 
                 .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
-                
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
-                
-                .requestMatchers("/uploads/**").permitAll()
 
                 // 나머지는 인증 필요
                 .anyRequest().authenticated()
