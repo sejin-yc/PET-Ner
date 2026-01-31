@@ -29,6 +29,7 @@ public class CatController {
     @GetMapping
     @Operation(summary = "고양이 목록 조회")
     public ResponseEntity<List<Cat>> getCats(@RequestParam Long userId) {
+        System.out.println(">>> [DEBUG] 고양이 목록 조회 요청 들어옴! UserID: " + userId);
         return ResponseEntity.ok(catRepository.findByUserId(userId));
     }
 
