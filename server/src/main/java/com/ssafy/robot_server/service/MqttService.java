@@ -49,7 +49,7 @@ public class MqttService {
                 
                 statusRepository.save(s);
 
-                String webSocketDest = "/sub/robot" + userId + "/status";
+                String webSocketDest = "/sub/robot/" + userId + "/status";
                 messagingTemplate.convertAndSend(webSocketDest, s);
 
             // 2. 로봇 위치(좌표) 수신
@@ -63,16 +63,16 @@ public class MqttService {
 
                 poseRepository.save(p);
 
-                String webSocketDest = "/sub/robot" + userId + "/pose";
+                String webSocketDest = "/sub/robot/" + userId + "/pose";
                 messagingTemplate.convertAndSend(webSocketDest, p);
 
             // 3. WebRTC 관련 (로봇 -> 웹)
             } else if (topic.endsWith("/offer")){
-                messagingTemplate.convertAndSend("/sub/peer" + userId + "/offer", payload); // 원본 JSON 전달
+                messagingTemplate.convertAndSend("/sub/peer/" + userId + "/offer", payload); // 원본 JSON 전달
                 
             // 4. WebRTC ICE Candidate (로봇 -> 웹)
             } else if (topic.endsWith("/ice")) {
-                messagingTemplate.convertAndSend("/sub/peer" + userId + "/ice", payload);
+                messagingTemplate.convertAndSend("/sub/peer/" + userId + "/ice", payload);
             }
 
         } catch (Exception e) {
