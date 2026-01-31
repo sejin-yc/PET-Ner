@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import styled from 'strled-components';
+import styled from 'styled-components';
 
 const MAP_CONFIG = {
     imageUrl: "https://i14c203.p.ssafy.io/uploads/cat_bot_map_final.png",
