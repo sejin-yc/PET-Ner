@@ -45,32 +45,42 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         const container = containerRef.current;
         if (!canvas || !image || !container) return;
 
-        const ctx = canvas.getContext('2d');
+        const draw = () => {
+            const ctx = canvas.getContext('2d');
 
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
 
-        canvas.width = containerWidth;
-        canvas.height = containerHeight;
+            canvas.width = containerWidth;
+            canvas.height = containerHeight;
 
-        const scaleX = containerWidth / MAP_CONFIG.originWidth;
-        const scaleY = containerHeight / MAP_CONFIG.originHeight;
-        const scale = Math.min(scaleX, scaleY);
+            const scaleX = containerWidth / MAP_CONFIG.originWidth;
+            const scaleY = containerHeight / MAP_CONFIG.originHeight;
+            const scale = Math.min(scaleX, scaleY);
 
-        const mapDisplayWidth = MAP_CONFIG.originWidth * scale;
-        const mapDisplayHeight = MAP_CONFIG.originHeight * scale;
-        const offsetX = (containerWidth - mapDisplayWidth) / 2;
-        const offsetY = (containerHeight - mapDisplayHeight) / 2;
+            const mapDisplayWidth = MAP_CONFIG.originWidth * scale;
+            const mapDisplayHeight = MAP_CONFIG.originHeight * scale;
+            const offsetX = (containerWidth - mapDisplayWidth) / 2;
+            const offsetY = (containerHeight - mapDisplayHeight) / 2;
 
-        ctx.imageSmoothingEnabled = false;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(
-            image,
-            0, 0, MAP_CONFIG.originWidth, MAP_CONFIG.originHeight,
-            offsetX, offsetY, mapDisplayWidth, mapDisplayHeight
-        );
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(
+                image,
+                0, 0, MAP_CONFIG.originWidth, MAP_CONFIG.originHeight,
+                offsetX, offsetY, mapDisplayWidth, mapDisplayHeight
+            );
+            drawRobot(ctx, robotX, robotY, robotTheta, scale, offsetX, offsetY);
+        };
 
-        drawRobot(ctx, robotX, robotY, robotTheta, scale, offsetX, offsetY);
+        const resizeObserver = new ResizeObserver(() => {
+            draw();
+        });
+
+        resizeObserver.observe(container);
+        draw();
+
+        return () => resizeObserver.disconnect();
     }, [image, robotX, robotY, robotTheta]);
 
     const drawRobot = (ctx, realX, realY, theta, scale, offsetX, offsetY) => {
@@ -84,7 +94,7 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         ctx.translate(finalX, finalY);
         ctx.rotate(-theta);
 
-        const robotSize = 4 * (scale / 5);
+        const robotSize = 6 * (scale / 8);
 
         ctx.beginPath();
         ctx.arc(0, 0, robotSize, 0, 2*Math.PI);
@@ -96,7 +106,7 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
 
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(robotSize*1.6, 0);
+        ctx.lineTo(robotSize*1.5, 0);
         ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2;
         ctx.stroke();
