@@ -6,8 +6,8 @@ const MAP_CONFIG = {
     resolution: 0.05,   // 1픽셀당 0.05m (5cm)
     originX: -1.51,     // 맵의 원점 X (meters)
     originY: -0.84,     // 맵의 원점 Y (meters)
-    originWidth: 64,          // PGM 파일 너비 (픽셀) - 파일 헤더 정보
-    originHeight: 62          // PGM 파일 높이 (픽셀) - 파일 헤더 정보
+    originWidth: 64,    // PGM 파일 너비 (픽셀) - 파일 헤더 정보
+    originHeight: 62    // PGM 파일 높이 (픽셀) - 파일 헤더 정보
 };
 
 const MapContainer = styled.div`
@@ -38,7 +38,6 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         img.src = MAP_CONFIG.imageUrl;
         img.crossOrigin = "Anonymous";
         img.onload = () => setImage(img);
-        img.onerror = () => console.error("❌ 맵 이미지를 찾을 수 없습니다. (uploads 폴더 확인)");
     }, []);
 
     useEffect(() => {
@@ -54,8 +53,8 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         canvas.width = containerWidth;
         canvas.height = containerHeight;
 
-        const scaleX = (containerWidth / MAP_CONFIG.originWidth) * 0.9;
-        const scaleY = (containerHeight / MAP_CONFIG.originHeight) * 0.9
+        const scaleX = containerWidth / MAP_CONFIG.originWidth;
+        const scaleY = containerHeight / MAP_CONFIG.originHeight;
         const scale = Math.min(scaleX, scaleY);
 
         const mapDisplayWidth = MAP_CONFIG.originWidth * scale;
@@ -85,7 +84,7 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         ctx.translate(finalX, finalY);
         ctx.rotate(-theta);
 
-        const robotSize = 6 * (scale / 10);
+        const robotSize = 4 * (scale / 5);
 
         ctx.beginPath();
         ctx.arc(0, 0, robotSize, 0, 2*Math.PI);
@@ -97,7 +96,7 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
 
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(robotSize*1.5, 0);
+        ctx.lineTo(robotSize*1.6, 0);
         ctx.strokeStyle = '#fbbf24';
         ctx.lineWidth = 2;
         ctx.stroke();
