@@ -97,11 +97,11 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         ctx.translate(finalX, finalY);
         ctx.rotate(-theta);
 
-        const robotSize = 20 * (scale / 8);
+        const robotSize = 20;
 
         ctx.beginPath();
         ctx.arc(0, 0, robotSize, 0, 2*Math.PI);
-        ctx.fillStyle = '#ef4444';
+        ctx.fillStyle = 'blue';
         ctx.fill();
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
