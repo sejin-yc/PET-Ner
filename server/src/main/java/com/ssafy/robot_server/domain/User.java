@@ -40,5 +40,12 @@ public class User {
     // ✅ (선택 사항) 권한 구분용 필드
     // 나중에 관리자 페이지를 만들거나 할 때 유용합니다.
     @Builder.Default // 빌더 패턴 사용 시 기본값 적용
-    private String role = "ROLE_USER"; 
+    private String role = "ROLE_USER";
+
+    // 기본 TTS용 프로필 정보 (nullable - 미입력 시 기본값 사용)
+    @Column(nullable = true)
+    private Integer age; // 나이
+
+    @Column(nullable = true, length = 10)
+    private String gender; // 성별 ("M", "F", null)
 }

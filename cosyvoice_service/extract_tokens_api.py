@@ -12,9 +12,26 @@ import tempfile
 from pathlib import Path
 
 # CosyVoice 경로 추가
-sys.path.insert(0, str(Path(__file__).parent / "CosyVoice"))
-sys.path.insert(0, str(Path(__file__).parent / "CosyVoice" / "third_party" / "Matcha-TTS"))
+# - Docker: /app/CosyVoice (스크립트와 같은 디렉터리)
+# - Jetson: 스크립트와 같은 디렉터리에 CosyVoice/ 풀어둔 경우
+# - 로컬(PC): S14P11C203/cosyvoice_service 에서 실행 시 프로젝트 루트의 CosyVoice/ 사용
+_script_dir = Path(__file__).resolve().parent
+_cosy_root = _script_dir / "CosyVoice"
+if not _cosy_root.exists() and _script_dir.parent.parent.is_dir():
+    _cosy_root = _script_dir.parent.parent / "CosyVoice"
+if _cosy_root.exists():
+    sys.path.insert(0, str(_cosy_root))
+else:
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger(__name__).warning(f"CosyVoice not found at {_cosy_root}; tried also {_script_dir.parent.parent / 'CosyVoice'}")
+# Jetson TTS 전용 모드가 아니면 Matcha-TTS 경로 추가 (토큰 추출용)
+if os.getenv("JETSON_TTS_ONLY", "0").lower() not in ("1", "true", "yes") and _cosy_root.exists():
+    _matcha = _cosy_root / "third_party" / "Matcha-TTS"
+    if _matcha.exists():
+        sys.path.insert(0, str(_matcha))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -23,45 +40,57 @@ import torch
 import torchaudio
 import subprocess
 
-# CosyVoice 임포트
-from cosyvoice.cli.extractor import SpeechTokenExtractor
+# CosyVoice 임포트 (Jetson TTS 전용 모드에서는 extractor 미사용)
+SpeechTokenExtractor = None
+if os.getenv("JETSON_TTS_ONLY", "0").lower() not in ("1", "true", "yes"):
+    from cosyvoice.cli.extractor import SpeechTokenExtractor
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CosyVoice Token Extraction & TTS API")
-
-# CORS 설정
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # 전역 변수
 extractor = None
 inference_engine = None  # TTS 합성용 (서버 기동 시 미리 로드 가능)
+
+
+def _log_vram(label: str = ""):
+    """GPU 사용 중이면 VRAM 할당/예약/피크를 GB 단위로 로그 (LOG_VRAM=1 이면 synthesize 시에도 출력)"""
+    if not torch.cuda.is_available():
+        return
+    torch.cuda.synchronize()
+    alloc = torch.cuda.memory_allocated() / (1024**3)
+    reserved = torch.cuda.memory_reserved() / (1024**3)
+    peak = torch.cuda.max_memory_allocated() / (1024**3)
+    logger.info(f"VRAM {label}: allocated={alloc:.2f} GB, reserved={reserved:.2f} GB, peak={peak:.2f} GB")
+
 
 def _load_inference_engine_sync():
     """TTS 추론 엔진 동기 로드 (블로킹)"""
     global inference_engine
     from cosyvoice.cli.inference_engine import JetsonInferenceEngine
     model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
-    inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=False)
+    use_fp16 = os.getenv("USE_FP16", "false").lower() in ("true", "1", "yes")
+    logger.info(f"GPU available: {torch.cuda.is_available()}, FP16: {use_fp16}")
+    inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=use_fp16)
+    _log_vram("(TTS 모델 로드 직후)")
 
-@app.on_event("startup")
-async def startup_event():
-    """서버 시작 시 토큰 추출 모델 + (선택) TTS 추론 엔진 미리 로드"""
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """서버 시작/종료 시 토큰 추출 모델 + (선택) TTS 추론 엔진 로드/해제"""
     global extractor
     import asyncio
+    model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
+    jetson_tts_only = os.getenv("JETSON_TTS_ONLY", "0").lower() in ("1", "true", "yes")
     try:
-        model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
-        logger.info(f"Loading CosyVoice extractor from: {model_dir}")
-        extractor = SpeechTokenExtractor(model_dir=model_dir)
-        logger.info("CosyVoice extractor loaded successfully")
+        if not jetson_tts_only and SpeechTokenExtractor is not None:
+            logger.info(f"Loading CosyVoice extractor from: {model_dir}")
+            extractor = SpeechTokenExtractor(model_dir=model_dir)
+            logger.info("CosyVoice extractor loaded successfully")
+        else:
+            if jetson_tts_only:
+                logger.info("JETSON_TTS_ONLY=1: skipping extractor (TTS only).")
 
         if os.getenv("PRELOAD_TTS", "true").lower() in ("true", "1", "yes"):
             logger.info("Preloading TTS inference engine (1~2분 소요 가능)...")
@@ -73,6 +102,20 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         raise
+    yield
+    # shutdown (필요 시 정리)
+
+
+app = FastAPI(title="CosyVoice Token Extraction & TTS API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/extract_tokens")
 async def extract_tokens(
@@ -220,8 +263,10 @@ def _get_inference_engine():
         t0 = time.perf_counter()
         from cosyvoice.cli.inference_engine import JetsonInferenceEngine
         model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
+        use_fp16 = os.getenv("USE_FP16", "false").lower() in ("true", "1", "yes")
         logger.warning("TTS 엔진이 아직 로드되지 않음. 지금 로드 중 (1~2분 소요, PRELOAD_TTS=true 로 서버 기동 시 미리 로드 권장)...")
-        inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=False)
+        logger.info(f"GPU available: {torch.cuda.is_available()}, FP16: {use_fp16}")
+        inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=use_fp16)
         logger.info(f"JetsonInferenceEngine 로드 완료 (소요: {time.perf_counter() - t0:.1f}초)")
     return inference_engine
 
@@ -266,6 +311,8 @@ async def synthesize(
         raise HTTPException(status_code=400, detail="text and tokens are required")
     try:
         import time
+        if os.getenv("LOG_VRAM", "").lower() in ("1", "true", "yes") and torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
         t0 = time.perf_counter()
         already_loaded = inference_engine is not None
         engine = _get_inference_engine()
@@ -278,6 +325,8 @@ async def synthesize(
             chunks.append(model_output["tts_speech"].cpu())
         t1 = time.perf_counter()
         logger.info(f"TTS 추론 소요: {t1 - t0:.2f}초 (텍스트 길이: {len(text)})")
+        if os.getenv("LOG_VRAM", "").lower() in ("1", "true", "yes"):
+            _log_vram("(방금 추론 직후)")
         if not chunks:
             raise HTTPException(status_code=500, detail="No audio generated")
         wav = torch.cat(chunks, dim=1)

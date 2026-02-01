@@ -1,8 +1,12 @@
 package com.ssafy.robot_server.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.robot_server.domain.User;
 import com.ssafy.robot_server.domain.UserVoice;
+import com.ssafy.robot_server.repository.UserRepository;
 import com.ssafy.robot_server.repository.UserVoiceRepository;
+import com.ssafy.robot_server.service.DefaultTokenService;
+import com.ssafy.robot_server.service.VoiceJetsonSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,9 @@ import java.util.Optional;
 public class VoiceController {
 
     private final UserVoiceRepository userVoiceRepository;
+    private final UserRepository userRepository;
+    private final VoiceJetsonSyncService voiceJetsonSyncService;
+    private final DefaultTokenService defaultTokenService;
     private final RestTemplate restTemplate = createRestTemplateWithLongTimeout();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -130,6 +137,9 @@ public class VoiceController {
 
             UserVoice saved = userVoiceRepository.save(userVoice);
 
+            // 학습 완료 직후 해당 유저 토큰을 Jetson으로 전송 (JETSON_VOICE_URL 설정 시만)
+            voiceJetsonSyncService.syncTokenToJetson(userId);
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "목소리 학습이 완료되었습니다.");
@@ -174,6 +184,20 @@ public class VoiceController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 로그인 후 등에서 호출: 해당 userId의 음성 토큰이 있으면 Jetson으로 미리 전송.
+     * JETSON_VOICE_URL이 설정된 경우에만 동작.
+     */
+    @PostMapping("/jetson/sync")
+    @Operation(summary = "Jetson 음성 토큰 동기화 (해당 유저 토큰 전송)")
+    public ResponseEntity<?> syncTokenToJetson(@RequestParam("userId") Long userId) {
+        voiceJetsonSyncService.syncTokenToJetson(userId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Jetson 동기화 요청 완료 (Jetson URL 미설정 시 전송되지 않음)");
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{userId}/status")
     @Operation(summary = "목소리 학습 상태 확인")
     public ResponseEntity<?> getVoiceStatus(@PathVariable Long userId) {
@@ -195,8 +219,9 @@ public class VoiceController {
     @Operation(summary = "TTS 합성 (텍스트 + 사용자 음성 토큰 → WAV)")
     public ResponseEntity<?> speak(
             @RequestParam("userId") Long userId,
-            @RequestParam("text") String text) {
-        System.out.println("[voice/speak] 요청 userId=" + userId);
+            @RequestParam("text") String text,
+            @RequestParam(required = false, defaultValue = "false") boolean useDefaultVoice) {
+        System.out.println("[voice/speak] 요청 userId=" + userId + " useDefaultVoice=" + useDefaultVoice);
         Optional<UserVoice> opt = userVoiceRepository.findByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId);
         if (opt.isEmpty()) {
             opt = userVoiceRepository.findFirstByUserIdOrderByCreatedAtDesc(userId);
@@ -204,20 +229,40 @@ public class VoiceController {
                 System.out.println("[voice/speak] userId=" + userId + " 활성 행 없음 → 같은 user_id 최신 행 사용 (id=" + opt.get().getId() + ")");
             }
         }
-        if (opt.isEmpty()) {
-            long countAny = userVoiceRepository.findAll().stream().filter(v -> userId.equals(v.getUserId())).count();
-            String hint = countAny > 0
-                ? "userId=" + userId + " 인 행은 있으나 is_active=true 인 행이 없습니다. DB에서 user_voices 의 is_active 를 확인하세요."
-                : "userId=" + userId + " 인 행이 user_voices 에 없습니다. 로그인한 계정의 id와 DB user_id 가 같은지 확인하세요.";
-            System.out.println("[voice/speak] 404: " + hint);
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "해당 사용자의 학습된 목소리가 없습니다. " + hint);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        String speechTokensJson;
+        String tokenSource; // 로그용: "user_voice" 또는 "default_{profileId}"
+        boolean useDefault = useDefaultVoice || opt.isEmpty();
+
+        if (useDefault) {
+            // useDefaultVoice 요청이거나 UserVoice 없음 → 기본 토큰 사용
+            System.out.println("[voice/speak] userId=" + userId + (useDefaultVoice ? " 기본 음성 사용 요청 → 기본 토큰 사용" : " UserVoice 없음 → 기본 토큰 사용"));
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "사용자를 찾을 수 없습니다.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+            User user = userOpt.get();
+            try {
+                String profileId = defaultTokenService.getProfileId(user.getAge(), user.getGender());
+                Map<String, Object> defaultTokens = defaultTokenService.loadDefaultTokens(profileId);
+                speechTokensJson = objectMapper.writeValueAsString(defaultTokens);
+                tokenSource = "default_" + profileId;
+                System.out.println("[voice/speak] 기본 토큰 로드 완료: " + profileId);
+            } catch (IOException e) {
+                System.err.println("[voice/speak] 기본 토큰 로드 실패: " + e.getMessage());
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "학습된 목소리가 없고, 기본 음성 토큰도 준비되지 않았습니다. 프로필(나이/성별)을 설정하거나 목소리를 학습해 주세요.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+        } else {
+            System.out.println("[voice/speak] userId=" + userId + " 토큰 조회됨 (voiceId=" + opt.get().getId() + "), CosyVoice 호출");
+            UserVoice voice = opt.get();
+            speechTokensJson = voice.getSpeechTokens();
+            tokenSource = "user_voice_" + voice.getId();
         }
-        System.out.println("[voice/speak] userId=" + userId + " 토큰 조회됨 (voiceId=" + opt.get().getId() + "), CosyVoice 호출");
-        UserVoice voice = opt.get();
-        String speechTokensJson = voice.getSpeechTokens();
         if (speechTokensJson == null || speechTokensJson.contains("\"error\"")) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
@@ -234,7 +279,7 @@ public class VoiceController {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
             String synthesizeUrl = cosyvoiceServiceUrl + "/synthesize";
-            System.out.println("[voice/speak] CosyVoice 호출: " + synthesizeUrl);
+            System.out.println("[voice/speak] CosyVoice 호출: " + synthesizeUrl + " (토큰 출처: " + tokenSource + ")");
             ResponseEntity<byte[]> response = restTemplate.postForEntity(
                     synthesizeUrl,
                     requestEntity,

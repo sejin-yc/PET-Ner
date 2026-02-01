@@ -1,14 +1,17 @@
-FROM python:3.10-slim
+# GPU 지원: PyTorch CUDA 이미지 사용
+# -devel: DeepSpeed pip 설치 시 nvcc 필요 (runtime 이미지에는 nvcc 없음)
+# CPU만 사용할 경우 python:3.10-slim 으로 변경 가능
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV DS_BUILD_OPS=0
 
 WORKDIR /app
 
-# 시스템 패키지 설치
-RUN apt-get update && apt-get install -y \
-    git \
-    g++ \
-    make \
-    wget \
-    xz-utils \
+# 시스템 패키지 설치 (일시적 미러 400 오류 시 재시도)
+RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
+    git g++ make wget xz-utils \
+    || (apt-get update && apt-get install -y --no-install-recommends --fix-missing git g++ make wget xz-utils) \
     && rm -rf /var/lib/apt/lists/*
 
 # ffmpeg 설치 (static build 다운로드)
@@ -20,7 +23,8 @@ RUN wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-stati
     && rm -rf ffmpeg-*-amd64-static* \
     && ffmpeg -version
 
-# Python 의존성 먼저 설치 (CosyVoice requirements.txt 사용)
+# Python 의존성 설치 (CosyVoice requirements.txt 사용)
+# PyTorch는 이미 베이스 이미지에 포함되어 있으므로 torch 관련은 건너뜀
 COPY CosyVoice/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 

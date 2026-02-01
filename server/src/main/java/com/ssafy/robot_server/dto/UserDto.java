@@ -17,6 +17,8 @@ public class UserDto {
     private String password;// 비밀번호 (요청받을 때만 사용)
     private String name;    // 이름
     private String role;
+    private Integer age;    // 나이 (기본 TTS용)
+    private String gender;  // 성별 ("M", "F", null)
 
     /**
      * User 엔티티(DB 데이터)를 UserDto(응답 데이터)로 변환하는 메서드
@@ -30,7 +32,9 @@ public class UserDto {
             user.getEmail(),
             null, // 🚨 보안 중요: 회원가입 완료 후 응답에는 비밀번호를 비워서 보냄!
             user.getName(),
-            user.getRole()
+            user.getRole(),
+            user.getAge(),
+            user.getGender()
         );
     }
 }

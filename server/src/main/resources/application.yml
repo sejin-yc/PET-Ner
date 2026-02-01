@@ -40,3 +40,9 @@ mqtt:
 cosyvoice:
   service:
     url: ${COSYVOICE_SERVICE_URL:http://cosyvoice_service:50001}
+
+# Jetson 음성 토큰 전송 (선택)
+# - 비어 있으면 로그인/학습 후 토큰 전송 안 함. 설정 시 POST {url}/voices/upload_token 로 JSON 전송
+jetson:
+  voice:
+    url: ${JETSON_VOICE_URL:}
