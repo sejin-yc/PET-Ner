@@ -87,6 +87,18 @@ services:
     networks:
       - robot_network
   
+  robot_media:
+    image: bluenviron/mediamtx:latest
+    container_name: robot_media
+    restart: unless-stopped
+    ports:
+      - "8554:8554"
+      - "8889:8889"
+      - "8888:8888"
+    environment:
+      - MTX_PROTOCOLS=tcp
+      - MTX_WEBRTCADDITIONALHOSTS=i14c203.p.ssafy.io
+  
   certbot:
     image: certbot/certbot
     container_name: certbot
