@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRobot } from '../contexts/RobotContext';
-import { Wifi, Battery, Zap, Navigation, Power, Mic, Volume2, Play, BrainCircuit, Repeat, Hand, Keyboard } from 'lucide-react';
+import { Battery, Zap, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
 import StreamPanel from '../components/StreamPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import Map2D from '../components/Map2D';
+import ControlPanel from '../components/ControlPanel';
 
 const Dashboard = () => {
   const { 
-    robotStatus, toggleMode, emergencyStop, moveRobot, 
+    robotStatus, toggleMode,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
-    trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
-    isRobotLoading
+    trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice
   } = useRobot();
 
   const [ttsText, setTtsText] = useState("");
@@ -88,23 +88,9 @@ const Dashboard = () => {
         </section>
 
         {/* 2. 제어 컨트롤러 */}
-        <section className={`bg-white rounded-lg border border-gray-200 shadow-sm p-5 transition-opacity duration-300 ${isAuto ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-           <div className="flex justify-between items-center mb-4"><h3 className="font-semibold text-gray-800 flex items-center gap-2"><Navigation size={18} /> 수동 제어</h3>{isAuto && <span className="text-[10px] text-red-500 font-bold border border-red-200 bg-red-50 px-2 py-0.5 rounded">자동 모드 중</span>}</div>
-           <div className="flex flex-col items-center gap-3">
-             <div className="grid grid-cols-3 gap-2">
-               <div />
-               <ControlButton onClick={() => handleMove(1, 0)} icon={<Navigation size={20} className="rotate-0"/>} label="W" />
-               <div />
-               <ControlButton onClick={() => handleMove(0, 1)} icon={<Navigation size={20} className="-rotate-90"/>} label="A" />
-               <div className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-200"><div className="w-2 h-2 bg-gray-400 rounded-full" /></div>
-               <ControlButton onClick={() => handleMove(0, -1)} icon={<Navigation size={20} className="rotate-90"/>} label="D" />
-               <div />
-               <ControlButton onClick={() => handleMove(-1, 0)} icon={<Navigation size={20} className="rotate-180"/>} label="S" />
-               <div />
-             </div>
-             <button onClick={emergencyStop} className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-red-200 shadow-lg active:scale-95 pointer-events-auto"><Power size={18} /> EMERGENCY STOP</button>
-           </div>
-        </section>
+        <div className={`transition-opacity duration-300 ${isAuto ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+          <ControlPanel />
+        </div>
 
         {/* 3. 음성 제어 센터 */}
         <section className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 space-y-5">
@@ -132,11 +118,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
-const ControlButton = ({ onClick, icon, label }) => (
-  <button onMouseDown={onClick} className="w-14 h-14 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 active:bg-gray-100 active:scale-95 transition-all flex flex-col items-center justify-center gap-1 text-gray-700">
-    <div className="text-gray-900">{icon}</div>{label && <span className="text-[10px] font-bold text-gray-400">{label}</span>}
-  </button>
-);
 
 export default Dashboard;
