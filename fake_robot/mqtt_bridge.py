@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionClient
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist, PoseStamped
 import json
@@ -11,10 +10,11 @@ import time
 MQTT_BROKER_IP = "i14c203.p.ssafy.io"
 MQTT_PORT = 1883
 
-TOPIC_STATUS = "robot/status"
-TOPIC_CONTROL = "robot/control"
+ROBOT_ID = "1"
 
-ROBOT_ID = "cat_bot"
+TOPIC_STATUS = f"robot/{ROBOT_ID}/status"
+TOPIC_CONTROL = f"robot/{ROBOT_ID}/control"
+TOPIC_EVENT = f"robot/{ROBOT_ID}/cat_state"
 
 POS_TOPIC = "/amcl_pose"
 CMD_VEL_TOPIC = "/cmd_vel"
@@ -47,6 +47,7 @@ class MqttBridge(Node):
     def on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
             self.get_logger().info(f"✅ MQTT Connected to {MQTT_BROKER_IP}")
+            self.get_logger().info(f"Subscribing to: {TOPIC_CONTROL}")
             client.subscribe(TOPIC_CONTROL)
         else:
             self.get_logger().error(f"❌ Connection failed with code {rc}")
@@ -81,8 +82,6 @@ class MqttBridge(Node):
     
     def stop_robot(self):
         twist = Twist()
-        twist.linear.x = 0.0
-        twist.angular.z = 0.0
         self.cmd_vel_pub.publish(twist)
     
     def move_robot(self, linear, angular):
@@ -102,7 +101,7 @@ class MqttBridge(Node):
 
         self.goal_pub.publish(goal)
     
-    def pose_callback(self, msg):
+    def listener_callback(self, msg):
         if "amcl" in POS_TOPIC:
             position = msg.pose.pose.position
             orientation = msg.pose.pose.orientation
@@ -113,6 +112,7 @@ class MqttBridge(Node):
         _, _, yaw = self.euler_from_quaternion(orientation)
 
         status_payload = {
+            "userId": int(ROBOT_ID),
             "robotId": ROBOT_ID,
             "x": round(position.x, 3),
             "y": round(position.y, 3),
