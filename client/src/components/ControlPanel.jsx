@@ -44,7 +44,7 @@ const ControlPanel = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleCommand]);
 
-  const ControlBtn = ({ label, icon: Icon, onclick, colorClass = "text-gray-700", bgClass = "bg-white" }) => (
+  const ControlBtn = ({ label, icon: Icon, onClick, colorClass = "text-gray-700", bgClass = "bg-white" }) => (
     <button
       onClick={onClick}
       className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl shadow-md border border-gray-100
@@ -83,7 +83,7 @@ const ControlPanel = () => {
           <ControlBtn label="D" icon={ArrowRight} onClick={() => handleCommand('D')} />
           <div />
 
-          <ControlBtn label="X" icon={ArrowDown} onclick={() => handleCommand('X')} />
+          <ControlBtn label="X" icon={ArrowDown} onClick={() => handleCommand('X')} />
           <div />
         </div>
 
