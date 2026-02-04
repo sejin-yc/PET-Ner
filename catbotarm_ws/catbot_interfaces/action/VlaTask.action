@@ -1,9 +1,0 @@
-# Goal: 작업 프롬프트 (예: "Pick up the shovel")
-string task_type 
----
-# Result: 성공 여부 및 결과 메시지
-bool success
-string message
----
-# Feedback: 실시간 진행 상태
-string status
