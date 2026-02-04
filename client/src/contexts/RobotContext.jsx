@@ -35,7 +35,10 @@ export const RobotProvider = ({ children }) => {
   const[isVideoOn, setIsVideoOn] = useState(true);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setIsRobotLoading(false);
+      return;
+    }
 
     const fetchInitialState = async () => {
       try {
@@ -46,6 +49,8 @@ export const RobotProvider = ({ children }) => {
         }
       } catch (err) {
         console.error("초기 상태 로드 실패:", err);
+      } finally {
+        setIsRobotLoading(false);
       }
     };
     fetchInitialState();
@@ -167,13 +172,16 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const { data: logs = [], refetch: refetchLogs } = useQuery({ queryKey: ['logs', user?.id], queryFn: async () => (await api.get(`/user/logs?userId=${user.id}`)).data, enabled: !!user?.id });
-  const deleteLogMutation = useMutation({ mutationFn: (id) => api.delete(`/user/logs/${id}`), onSuccess: () => { queryClient.invalidateQueries(['logs']); toast.success("삭제되었습니다."); }});
+  const { data: logs = [], refetch: refetchLogs } = useQuery({ queryKey: ['logs', user?.id], queryFn: async () => (await api.get(`/logs?userId=${user.id}`)).data, enabled: !!user?.id });
+  const deleteLogMutation = useMutation({ mutationFn: (id) => api.delete(`/logs/${id}`), onSuccess: () => { queryClient.invalidateQueries(['logs']); toast.success("삭제되었습니다."); }});
 
   const [isVoiceTraining, setIsVoiceTraining] = useState(false);
   const [voiceTrainingText, setVoiceTrainingText] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const walkieRecorderRef = useRef(null);
+  const walkieChunksRef = useRef([]);
+  const walkieStreamRef = useRef(null);
 
   useEffect(() => {
     if (!user?.id) {
@@ -247,8 +255,51 @@ export const RobotProvider = ({ children }) => {
       });
     } catch(e) {}
   };
-  const startWalkieTalkie = () => { setIsRecording(true); };
-  const stopWalkieTalkie = () => { if (isRecording) { setIsRecording(false); addNotification({ type: 'robot', title: '📡 무전 전송', message: '사용자의 음성을 로봇으로 전송했습니다.', link: '/'}); }};
+  const startWalkieTalkie = async () => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      walkieStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      walkieRecorderRef.current = recorder;
+      walkieChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) walkieChunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(walkieChunksRef.current, { type: recorder.mimeType });
+        walkieStreamRef.current?.getTracks().forEach((t) => t.stop());
+        walkieStreamRef.current = null;
+        const formData = new FormData();
+        formData.append("userId", user.id);
+        formData.append("audio", blob, "walkie.webm");
+        try {
+          const res = await api.post("/audio/walkie", formData);
+          if (res.data?.success) {
+            addNotification({ type: 'robot', title: '📡 무전 전송', message: '음성이 저장되었고 Pi5로 재생 요청이 전송되었습니다.', link: '/' });
+          } else {
+            toast.error(res.data?.message || "무전 전송 실패");
+          }
+        } catch (err) {
+          toast.error("무전 전송 실패: " + (err.response?.data?.message || err.message));
+        }
+        setIsRecording(false);
+      };
+      recorder.start();
+      setIsRecording(true);
+      toast.info("무전기 녹음 중... (종료 시 자동 전송)");
+    } catch (err) {
+      toast.error("마이크 권한이 필요합니다.");
+    }
+  };
+  const stopWalkieTalkie = () => {
+    if (walkieRecorderRef.current?.state === "recording") {
+      walkieRecorderRef.current.stop();
+    } else {
+      setIsRecording(false);
+    }
+  };
   const trainVoice = async () => {
     if (!user) {
       toast.error("로그인이 필요합니다.");
@@ -262,10 +313,10 @@ export const RobotProvider = ({ children }) => {
     try {
       // 마이크 권한 요청
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-      
+      // 형식 지정 없이 생성 → 브라우저가 사용하는 기본 형식으로 녹음됨
+      const mediaRecorder = new MediaRecorder(stream);
+      const actualMime = mediaRecorder.mimeType; // 실제 녹음 형식 (브라우저마다 다름: webm, mp4 등)
+
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -276,11 +327,8 @@ export const RobotProvider = ({ children }) => {
       };
 
       mediaRecorder.onstop = async () => {
-        // 녹음 완료 후 파일 생성 및 전송
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await sendVoiceToServer(audioBlob, selectedText);
-        
-        // 스트림 정리
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMime });
+        await sendVoiceToServer(audioBlob, selectedText, actualMime);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -309,16 +357,32 @@ export const RobotProvider = ({ children }) => {
     setIsVoiceTraining(false);
   };
 
+  // 실제 MIME 타입에서 확장자 추출 (webm, mp4, ogg, wav 등 뭐가 오든 그대로 반영)
+  const getExtensionFromMime = (mime) => {
+    if (!mime) return 'webm';
+    const base = mime.split(';')[0].trim().toLowerCase(); // "audio/webm;codecs=opus" → "audio/webm"
+    const subtype = base.includes('/') ? base.split('/')[1] : ''; // "audio/webm" → "webm"
+    if (subtype === 'x-wav' || subtype === 'wav') return 'wav';
+    if (subtype) return subtype; // webm, mp4, ogg, 그 외 모두 그대로 사용
+    return 'webm';
+  };
+
   // 서버로 음성 전송
-  const sendVoiceToServer = async (audioBlob, promptText) => {
+  const sendVoiceToServer = async (audioBlob, promptText, recordedMimeType = 'audio/webm') => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다.");
+      setIsVoiceTraining(false);
+      return;
+    }
     try {
       setIsVoiceTraining(false);
       toast.info("음성을 서버로 전송 중...");
 
+      const ext = getExtensionFromMime(recordedMimeType);
       const formData = new FormData();
       formData.append('userId', user.id);
       formData.append('promptText', promptText);
-      formData.append('audio', audioBlob, 'voice.wav');
+      formData.append('audio', audioBlob, `voice.${ext}`);
 
       // FormData 사용 시 Content-Type은 설정하지 않음. axios가 multipart/form-data; boundary=... 자동 설정
       const response = await api.post('/user/voice/train', formData);
@@ -372,7 +436,7 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const addTestLog = async () => { if (!user) return; try { await api.post('/user/logs', { userId: user.id, rentId: 999, vehicleId: 101, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {console.error(e); toast.error("로그 생성 실패")} };
+  const addTestLog = async () => { if (!user) return; try { await api.post('/logs', { userId: user.id, rentId: 999, vehicleId: 101, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {console.error(e); toast.error("로그 생성 실패")} };
 
   /* 5. 키보드 제어 */
   // 현재 속도를 기억

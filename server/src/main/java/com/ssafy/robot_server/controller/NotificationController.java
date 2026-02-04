@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/user/notifications", "/api/user/notifications"})
+@RequestMapping("/user/notifications")
 @RequiredArgsConstructor
 @Tag(name = "4. 알림 관리", description = "알림 조회/생성/읽음처리 API")
 public class NotificationController {

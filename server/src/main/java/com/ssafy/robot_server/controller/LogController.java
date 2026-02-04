@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/log", "/logs", "/api/log", "/api/logs"})
+@RequestMapping({"/log", "/logs"})
 @RequiredArgsConstructor // ✅ 생성자 주입 (Autowired 대체)
 @Tag(name = "2. 로그 관리", description = "로봇 순찰 로그 API")
 public class LogController {

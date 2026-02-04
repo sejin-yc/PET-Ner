@@ -12,10 +12,12 @@ const api = axios.create({
 // 2. 요청 인터셉터 (Request Interceptor) 설정
 api.interceptors.request.use(
   (config) => {
+    // FormData 요청 시 Content-Type 제거 → 브라우저가 multipart/form-data; boundary=... 자동 설정
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     // 로컬 스토리지에서 토큰 꺼내기
     const token = localStorage.getItem('token');
-    
-    // 토큰이 있으면 헤더에 'Bearer 토큰' 형태로 붙이기
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }

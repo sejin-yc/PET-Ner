@@ -1,5 +1,7 @@
 server:
-  port: 8080 # 서버 포트 번호
+  port: 8080
+  servlet:
+    context-path: /api   # 프론트 요청 /api/logs → 컨트롤러는 /logs 로 매핑
 
 spring:
   servlet:
@@ -37,7 +39,7 @@ mqtt:
   username: ssafy
   password: ssafy1
 
-# CosyVoice 서비스 (TTS)
+# CosyVoice 서비스 (TTS, WAV 변환). Docker 기본값: cosyvoice_service:50001 / 로컬 실행 시: COSYVOICE_SERVICE_URL=http://localhost:50001
 cosyvoice:
   service:
     url: ${COSYVOICE_SERVICE_URL:http://cosyvoice_service:50001}
@@ -46,6 +48,12 @@ cosyvoice:
 jetson:
   voice:
     url: ${JETSON_VOICE_URL:}
+
+# Pi5 음성 재생: 로컬 저장 경로 + 다운로드 base URL. 로컬 실행 시 AUDIO_UPLOAD_DIR=./uploads/audio 등으로 지정 가능
+audio:
+  upload-dir: ${AUDIO_UPLOAD_DIR:/app/uploads/audio}
+  base-url: ${SERVER_BASE_URL:http://localhost:8080/api}
+  mqtt-topic-play: pi5/audio/play
 
 logging:
   level:

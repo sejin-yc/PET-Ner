@@ -6,6 +6,7 @@ import com.ssafy.robot_server.domain.UserVoice;
 import com.ssafy.robot_server.dto.TtsSpeakRequest;
 import com.ssafy.robot_server.repository.UserRepository;
 import com.ssafy.robot_server.repository.UserVoiceRepository;
+import com.ssafy.robot_server.service.AudioPlaybackService;
 import com.ssafy.robot_server.service.DefaultTokenService;
 import com.ssafy.robot_server.service.VoiceJetsonSyncService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +21,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,20 +46,54 @@ public class VoiceController {
     private final UserRepository userRepository;
     private final VoiceJetsonSyncService voiceJetsonSyncService;
     private final DefaultTokenService defaultTokenService;
+    private final AudioPlaybackService audioPlaybackService;
     private final RestTemplate restTemplate = createRestTemplateWithLongTimeout();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** CosyVoice /synthesize 첫 호출 시 모델 로딩으로 시간이 걸리므로 읽기 타임아웃 2분 */
+    /** CosyVoice /synthesize: 첫 호출·긴 문장 시 처리 시간이 길 수 있으므로 읽기 타임아웃 5분 */
     private static RestTemplate createRestTemplateWithLongTimeout() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(10));
-        factory.setReadTimeout(Duration.ofSeconds(120));
+        factory.setReadTimeout(Duration.ofSeconds(300));
         RestTemplate rt = new RestTemplate();
         rt.setRequestFactory(factory);
         return rt;
     }
 
-    private static final String UPLOAD_DIR = "/app/uploads/voices/";
+    /**
+     * cosyvoice_service가 재시작/프리로드 중이면 잠깐 포트가 안 열려 Connection refused가 날 수 있음.
+     * 이 경우 짧게 재시도해서 사용자 입장에서는 \"바로 실패\"가 아니라 기다렸다가 합성이 되도록 함.
+     */
+    private <T> ResponseEntity<T> postForEntityWithRetry(String url, HttpEntity<?> requestEntity, Class<T> responseType) {
+        final int maxAttempts = 8;          // 총 8회 시도
+        long sleepMs = 500;                 // 0.5s부터 시작해 지수 백오프
+        ResourceAccessException last = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return restTemplate.postForEntity(url, requestEntity, responseType);
+            } catch (ResourceAccessException e) {
+                last = e;
+                String msg = e.getMessage() != null ? e.getMessage() : "";
+                Throwable cause = e.getCause();
+                boolean connectionRefused = (cause instanceof java.net.ConnectException) || msg.contains("Connection refused");
+                if (!connectionRefused || attempt == maxAttempts) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+                sleepMs = Math.min(8000, sleepMs * 2); // 최대 8초
+            }
+        }
+        throw (last != null) ? last : new ResourceAccessException("I/O error on POST request (unknown)");
+    }
+
+    @Value("${audio.upload-dir:/app/uploads/audio}")
+    private String audioUploadDir;
 
     @Value("${cosyvoice.service.url:http://cosyvoice_service:50001}")
     private String cosyvoiceServiceUrl;
@@ -71,18 +107,19 @@ public class VoiceController {
             @RequestParam("audio") MultipartFile audioFile) {
 
         try {
-            Path uploadPath = Paths.get(UPLOAD_DIR);
+            // 무전기와 동일: CosyVoice /convert_to_wav로 WAV 변환 후 한 곳(uploads/audio)에 저장
+            byte[] wavBytes = audioPlaybackService.convertUploadToWav(audioFile);
+            Path uploadPath = Paths.get(audioUploadDir);
             Files.createDirectories(uploadPath);
-
-            String fileName = userId + "_" + System.currentTimeMillis() + ".wav";
+            String fileName = "voice_train_" + userId + "_" + System.currentTimeMillis() + ".wav";
             Path filePath = uploadPath.resolve(fileName);
-            audioFile.transferTo(filePath.toFile());
+            Files.write(filePath, wavBytes);
 
             if (!Files.exists(filePath)) {
                 throw new IOException("파일 저장 후 확인 실패: " + filePath);
             }
 
-            String audioUrl = "/uploads/voices/" + fileName;
+            String audioUrl = "/uploads/audio/" + fileName;
 
             String speechTokens = null;
             String embeddings = null;
@@ -268,9 +305,15 @@ public class VoiceController {
                 System.out.println("[voice/speak] Edge TTS 호출: " + edgeUrl + " gender=" + gender);
                 ResponseEntity<byte[]> response = restTemplate.postForEntity(edgeUrl, requestEntity, byte[].class);
                 if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                    byte[] wavBytes = response.getBody();
+                    try {
+                        audioPlaybackService.saveTts(userId, true, text, wavBytes);
+                    } catch (Exception e) {
+                        System.err.println("[voice/speak] Edge TTS 저장/MQTT 발행 실패(클라이언트 응답은 정상 반환): " + e.getMessage());
+                    }
                     HttpHeaders outHeaders = new HttpHeaders();
                     outHeaders.setContentType(MediaType.parseMediaType("audio/wav"));
-                    return new ResponseEntity<>(response.getBody(), outHeaders, HttpStatus.OK);
+                    return new ResponseEntity<>(wavBytes, outHeaders, HttpStatus.OK);
                 }
                 Map<String, Object> error = new HashMap<>();
                 error.put("success", false);
@@ -316,15 +359,21 @@ public class VoiceController {
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
                 String synthesizeUrl = cosyvoiceServiceUrl + "/synthesize";
-            ResponseEntity<byte[]> response = restTemplate.postForEntity(
+            ResponseEntity<byte[]> response = postForEntityWithRetry(
                     synthesizeUrl,
                     requestEntity,
                     byte[].class
             );
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                byte[] wavBytes = response.getBody();
+                try {
+                    audioPlaybackService.saveTts(userId, false, text, wavBytes);
+                } catch (Exception e) {
+                    System.err.println("[voice/speak] TTS 저장/MQTT 발행 실패(클라이언트 응답은 정상 반환): " + e.getMessage());
+                }
                 HttpHeaders outHeaders = new HttpHeaders();
                 outHeaders.setContentType(MediaType.parseMediaType("audio/wav"));
-                return new ResponseEntity<>(response.getBody(), outHeaders, HttpStatus.OK);
+                return new ResponseEntity<>(wavBytes, outHeaders, HttpStatus.OK);
             }
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);

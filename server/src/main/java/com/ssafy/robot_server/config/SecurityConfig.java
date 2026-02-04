@@ -45,12 +45,13 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/user/**", "/api/user/**", "/users/**", "/api/users/**").permitAll()
-                .requestMatchers("/cat/**", "/api/cat/**", "/cats/**", "/api/cats/**", "/videos/**", "/api/videos/**", "/uploads/**").permitAll()
-                .requestMatchers("/robot/**", "/api/robot/**").permitAll()
-
-                .requestMatchers("/ros2/**", "/signal", "/ws/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+                .requestMatchers("/api/user/**", "/api/users/**", "/user/**", "/users/**").permitAll()
+                .requestMatchers("/api/cat/**", "/api/cats/**", "/cat/**", "/cats/**", "/api/video/**", "/api/videos/**", "/video/**", "/videos/**", "/api/uploads/**", "/uploads/**").permitAll()
+                .requestMatchers("/api/audio/**", "/audio/**").permitAll()
+                .requestMatchers("/api/log/**", "/api/logs/**", "/log/**", "/logs/**").permitAll()
+                .requestMatchers("/api/robot/**", "/robot/**").permitAll()
+                .requestMatchers("/api/ros2/**", "/ros2/**", "/api/signal", "/signal", "/api/ws/**", "/ws/**").permitAll()
+                .requestMatchers("/api/swagger-ui/**", "/swagger-ui/**", "/api/v3/api-docs/**", "/v3/api-docs/**", "/api/error", "/error").permitAll()
 
                 // 나머지는 인증 필요
                 .anyRequest().authenticated()

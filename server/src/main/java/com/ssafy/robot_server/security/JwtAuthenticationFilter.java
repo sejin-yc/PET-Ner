@@ -28,35 +28,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-                
-        System.out.println("=============================================");
-        System.out.println(">>> [FILTER 요청 감지] URI: " + request.getRequestURI());
-        System.out.println(">>> [FILTER 요청 메소드] Method: " + request.getMethod());
-        System.out.println("=============================================");
-        
-        String token = parseBearerToken(request);
+        try {
+            String token = parseBearerToken(request);
 
-        if (token != null && tokenProvider.validateToken(token)) {
-            String email = tokenProvider.getEmailFromToken(token);
-            
-            userRepository.findByEmail(email).ifPresent(user -> {
-                var authorities = user.getRoles().stream()
-                                      . map(SimpleGrantedAuthority::new)
-                                      .collect(Collectors.toList());
+            if (token != null && tokenProvider.validateToken(token)) {
+                String email = tokenProvider.getEmailFromToken(token);
 
-                UserDetails userDetails = new org.springframework.security.core.userdetails.User(
-                        user.getEmail(),
-                        user.getPassword(),
-                        authorities
-                );
-                
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            });
+                userRepository.findByEmail(email).ifPresent(user -> {
+                    try {
+                        var authorities = (user.getRoles() != null ? user.getRoles() : java.util.Collections.<String>emptyList())
+                                .stream()
+                                .map(SimpleGrantedAuthority::new)
+                                .collect(Collectors.toList());
+
+                        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                                user.getEmail(),
+                                user.getPassword() != null ? user.getPassword() : "",
+                                authorities
+                        );
+
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } catch (Exception e) {
+                        org.slf4j.LoggerFactory.getLogger(getClass()).warn("JWT 인증 설정 중 오류 (요청 계속 진행): {}", e.getMessage());
+                    }
+                });
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(getClass()).warn("JWT 필터 오류 (요청 계속 진행): {}", e.getMessage());
         }
         filterChain.doFilter(request, response);
     }

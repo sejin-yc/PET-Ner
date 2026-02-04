@@ -167,31 +167,58 @@ async def extract_tokens(
         
         logger.info(f"Received audio file: {audio_file.filename}, content_type: {audio_file.content_type}")
         
-        # 이미 WAV면 변환 없이 그대로 사용 (16kHz 모노 WAV 가정, ref와 동일 입력으로 비교 가능)
         base_name = audio_file.filename.rsplit('.', 1)[0]
         ext = audio_file.filename.rsplit('.', 1)[-1].lower() if '.' in audio_file.filename else ''
+        temp_wav_path = f"/tmp/{base_name}_converted.wav"
+
+        def try_convert_to_wav():
+            """원본을 ffmpeg로 WAV 변환. 실패 시 torchaudio 시도."""
+            import subprocess
+            check_result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
+            if check_result.returncode != 0:
+                raise FileNotFoundError("ffmpeg not found in PATH")
+            result = subprocess.run(
+                ['ffmpeg', '-i', temp_audio_path, '-ar', '16000', '-ac', '1', '-f', 'wav', temp_wav_path, '-y'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0 and os.path.exists(temp_wav_path):
+                logger.info(f"Converted to WAV using ffmpeg: {temp_wav_path}")
+                return
+            raise Exception(f"ffmpeg failed: {result.stderr}")
+
         if ext == 'wav':
-            temp_wav_path = temp_audio_path
-            logger.info(f"WAV 파일 → 변환 생략, 원본 사용: {temp_wav_path}")
+            # 확장자가 .wav여도 실제 내용이 WebM 등일 수 있음(백엔드가 .wav로 저장한 경우). 로드 가능한지 검사
+            try:
+                torchaudio.load(temp_audio_path, backend='soundfile')
+                temp_wav_path = temp_audio_path
+                logger.info(f"WAV 파일 → 검증 OK, 원본 사용: {temp_wav_path}")
+            except Exception as e:
+                logger.warning(f"WAV로 열기 실패 (실제 형식이 다를 수 있음): {e}. ffmpeg 변환 시도.")
+                try:
+                    try_convert_to_wav()
+                except FileNotFoundError:
+                    try:
+                        waveform, sample_rate = torchaudio.load(temp_audio_path)
+                        if waveform.shape[0] > 1:
+                            waveform = waveform.mean(dim=0, keepdim=True)
+                        if sample_rate != 16000:
+                            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+                            waveform = resampler(waveform)
+                        torchaudio.save(temp_wav_path, waveform, 16000)
+                        logger.info(f"Converted to WAV using torchaudio: {temp_wav_path}")
+                    except Exception as torch_error:
+                        logger.error(f"torchaudio conversion failed: {torch_error}")
+                        raise
+                except Exception as ffmpeg_error:
+                    logger.error(f"ffmpeg conversion failed: {ffmpeg_error}")
+                    raise
         else:
-            # WebM/기타 형식만 WAV로 변환
-            temp_wav_path = f"/tmp/{base_name}_converted.wav"
+            # WebM/기타 형식 → WAV로 변환
             logger.info(f"Non-WAV → 변환 시도: {temp_audio_path} -> {temp_wav_path}")
             try:
-                import subprocess
-                check_result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
-                if check_result.returncode != 0:
-                    raise FileNotFoundError("ffmpeg not found in PATH")
-                result = subprocess.run(
-                    ['ffmpeg', '-i', temp_audio_path, '-ar', '16000', '-ac', '1', '-f', 'wav', temp_wav_path, '-y'],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0 and os.path.exists(temp_wav_path):
-                    logger.info(f"Converted to WAV using ffmpeg: {temp_wav_path}")
-                else:
-                    raise Exception(f"ffmpeg failed: {result.stderr}")
+                try_convert_to_wav()
             except FileNotFoundError:
                 try:
                     waveform, sample_rate = torchaudio.load(temp_audio_path)
@@ -465,16 +492,8 @@ async def synthesize_edge_tts(text: str = Body(..., embed=True), gender: str = B
                 raise RuntimeError(f"ffmpeg WAV 변환 실패: {result.stderr or result.stdout}")
             with open(tmp_wav, "rb") as rf:
                 audio_bytes = rf.read()
-            # 확인용 저장 (Docker: /app/uploads/edge_tts_output, 로컬: cosyvoice_service/uploads/edge_tts_output)
-            import time
-            save_dir = Path("/app/uploads/edge_tts_output") if Path("/app/uploads").exists() else _script_dir / "uploads" / "edge_tts_output"
-            save_dir.mkdir(parents=True, exist_ok=True)
-            ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-            save_name = f"edge_tts_{gender}_{ts}.wav"
-            save_path = save_dir / save_name
-            with open(save_path, "wb") as wf:
-                wf.write(audio_bytes)
-            logger.info(f"Edge TTS OK: voice={voice}, WAV len={len(audio_bytes)} bytes, 저장: {save_path}")
+            # 저장은 Spring에서 uploads/audio + DB로 통일. 여기서는 바이트만 반환.
+            logger.info(f"Edge TTS OK: voice={voice}, WAV len={len(audio_bytes)} bytes")
             return Response(content=audio_bytes, media_type="audio/wav")
         finally:
             for p in (tmp_mp3, tmp_wav):
@@ -486,6 +505,45 @@ async def synthesize_edge_tts(text: str = Body(..., embed=True), gender: str = B
     except Exception as e:
         logger.error(f"Edge TTS failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/convert_to_wav")
+async def convert_to_wav(audio_file: UploadFile = File(...)):
+    """
+    업로드된 음성 파일(webm/mp4 등)을 WAV(16kHz mono)로 변환해 바이트 반환.
+    무전기 녹음 업로드 후 서버에서 Pi5 재생용 WAV로 저장할 때 사용.
+    """
+    import subprocess
+    temp_audio_path = None
+    temp_wav_path = None
+    try:
+        temp_audio_path = f"/tmp/convert_{audio_file.filename or 'upload'}"
+        with open(temp_audio_path, "wb") as f:
+            f.write(await audio_file.read())
+        base = (audio_file.filename or "upload").rsplit(".", 1)[0]
+        temp_wav_path = f"/tmp/{base}_out.wav"
+        result = subprocess.run(
+            ["ffmpeg", "-i", temp_audio_path, "-ar", "16000", "-ac", "1", "-f", "wav", temp_wav_path, "-y"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0 or not os.path.exists(temp_wav_path):
+            raise HTTPException(status_code=400, detail=f"ffmpeg conversion failed: {result.stderr}")
+        with open(temp_wav_path, "rb") as f:
+            wav_bytes = f.read()
+        return Response(content=wav_bytes, media_type="audio/wav")
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="ffmpeg not found")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Conversion timeout")
+    finally:
+        for p in (temp_audio_path, temp_wav_path):
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
 
 
 @app.get("/health")

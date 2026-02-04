@@ -48,7 +48,7 @@ services:
       mosquitto:
         condition: service_started
       cosyvoice_service:
-        condition: service_started
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/robot_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -87,6 +87,12 @@ services:
       USE_STREAM_INFERENCE: "true"
       # 합성 후 CUDA 캐시 정리
       FREE_CUDA_CACHE_AFTER_SYNTH: "true"
+    healthcheck:
+      # FastAPI /health 가 200을 반환해야 healthy
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:50001/health', timeout=2).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 18
     networks:
       - robot_network
     # GPU 할당 (NVIDIA Container Toolkit 필요)

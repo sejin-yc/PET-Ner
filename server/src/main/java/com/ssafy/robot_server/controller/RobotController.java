@@ -18,7 +18,7 @@ import java.util.Map;
 
 @Slf4j
 @Controller
-@RequestMapping({"/robot", "/api/robot"})
+@RequestMapping("/robot")
 @RequiredArgsConstructor
 public class RobotController {
 
