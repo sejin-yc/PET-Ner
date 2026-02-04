@@ -9,6 +9,7 @@ import ControlPanel from '../components/ControlPanel';
 const Dashboard = () => {
   const { 
     robotStatus, toggleMode, moveRobot,
+    remoteStream, isVideoOn, toggleVideo,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
     trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice
   } = useRobot();
@@ -52,9 +53,13 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* 2. ✅ 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
+        {/* 2. 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
         <section className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm h-[400px]">
-          <StreamPanel />
+          <StreamPanel
+            stream={remoteStream}
+            isOn={isVideoOn}
+            onToggle={toggleVideo}
+          />
         </section>
       </div>
 
