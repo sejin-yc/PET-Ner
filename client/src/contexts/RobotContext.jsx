@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Client } from '@stomp/stompjs';
+import mqtt from 'mqtt';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
 import api from '../api/axios';
@@ -13,9 +13,11 @@ export const RobotProvider = ({ children }) => {
   const { addNotification } = useNotifications();
   const queryClient = useQueryClient();
 
+  const MQTT_BROKER_URL = "wss://i14c203.p.ssafy.io/mqtt"
+
+  const [client, setClient] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
-  const stompClientRef = useRef(null);
   const peerConnection = useRef(null);
 
   const lastCommandTime = useRef(0);
@@ -24,7 +26,8 @@ export const RobotProvider = ({ children }) => {
   /* 1. 로봇 상태 */
   const [robotStatus, setRobotStatus] = useState({
     isOnline: false, battery: 0, mode: 'manual', 
-    position: { x: 50, y: 50 }, speed: 0, charging: false,
+    position: { x: 0, y: 0 },x: 0.0, y: 0.0, theta: 0.0,
+    speed: 0, charging: false,
     temperature: 0.0, lastUpdate: new Date().toISOString(),
   });
 
@@ -61,70 +64,86 @@ export const RobotProvider = ({ children }) => {
 
   /* 2. 연결 설정 (STOMP + Signaling) */
   useEffect(() => {
-    if (!user?.id) return;
+    const userId = user?.id || '1';
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+    console.log(`🔌 MQTT 연결 시도: ${MQTT_BROKER_URL}`);
 
-    const client = new Client({
-      brokerURL: wsUrl,
-      reconnectDelay: 5000,
-      onConnect: () => {
-        console.log('✅ STOMP 연결 성공!');
-        setIsConnected(true);
-        setRobotStatus(prev => ({ ...prev, isOnline: true}));
+    const mqttClient = mqtt.connect(MQTT_BROKER_URL, {
+      keepalive: 60,
+      protocolId: 'MQTT',
+      protocolVersion: 4,
+      reconnectPeriod: 2000,
+      connectTimeout: 30 * 1000,
+      clean: true,
+      path: '/mqtt'
+    });
 
-        client.subscribe(`/sub/${user.id}/robot/status`, (message) => {
-          try {
-            const payload = JSON.parse(message.body);
-            setRobotStatus(prev => ({
-              ...prev,
-              isOnline: true,
-              battery: payload.batteryLevel ?? prev.battery,
-              charging: payload.charging ?? prev.charging,
-              temperature: payload.temperature ?? prev.temperature,
-              position: { x: payload.x ?? prev.position.x, y: payload.y ?? prev.position.y },
-              mode: payload.mode ?? prev.mode,
-              lastUpdate: new Date().toISOString()
-            }));
-          } catch (e) {
-            console.error("데이터 파싱 에러:", e);
-          }
-        });
+    mqttClient.on('connect', () => {
+      console.log('✅ MQTT 연결 성공!');
+      setIsConnected(true);
+      setRobotStatus(prev => ({ ...prev, isOnline: true }));
 
-        // WebRTC Offer
-        client.subscribe(`/sub/peer/${user.id}/offer`, (message) => {
-          console.log("📹 [STOMP] Offer 수신됨!");
-          const offer = JSON.parse(message.body);
-          handleWebRTCOffer(offer);
-        });
+      const statusTopic = `robot/${userId}/status`;
+      const peerOfferTopic = `peer/${userId}/offer`;
+      const peerIceTopic = `peer/${userId}/ice`;
 
-        // ICE Candidate
-        client.subscribe(`/sub/peer/${user.id}/ice`, (message) => {
-          const payload = JSON.parse(message.body);
+      mqttClient.subscribe([statusTopic, peerOfferTopic, peerIceTopic], (err) => {
+        if (!err) console.log(`📡 토픽 구독 완료: ${statusTopic}`);
+      });
+    });
+
+    mqttClient.on('message', (topic, message) => {
+      const msgString = message.toString();
+      const userId = user?.id || '1';
+
+      try{
+        if (topic === `robot/${userId}/status`) {
+          const payload = JSON.parse(msgString);
+          setRobotStatus(prev => ({
+            ...prev,
+            isOnline: true,
+            battery: payload.battery ?? prev.battery,
+            charging: payload.charging ?? prev.charging,
+            temperature: payload.temperature ?? prev.temperature,
+            mode: payload.mode ?? prev.mode,
+            x: payload.x ?? prev.x,
+            y: payload.y ?? prev.y,
+            theta: payload.theta ?? prev.theta,
+            position: { x: payload.x ?? prev.position.x, y: payload.y ?? prev.position.y },
+            lastUpdate: new Date().toISOString()
+          }));
+        } else if (topic === `peer/${userId}/offer`) {
+          console.log("📹 [MQTT] WebRTC Offer 수신!");
+          const offer = JSON.parse(msgString);
+          handleWebRTCOffer(offer, mqttClient);
+        } else if (topic === `peer/${userId}/ice`) {
+          const payload = JSON.parse(msgString);
           if (peerConnection.current && peerConnection.current.setRemoteDescription) {
             peerConnection.current.addIceCandidate(new RTCIceCandidate(payload))
                 .catch(e => console.error("ICE 추가 에러", e));
           }
-        });
-      },
-      onDisconnect: () => {
-        console.log('🔌 STOMP 연결 끊김');
-        setIsConnected(false);
-        setRobotStatus(prev => ({ ...prev, isOnline: false }));
-      },
+        }
+      } catch (e) {
+        console.error("MQTT 메시지 파싱 에러:", e);
+      }
     });
 
-    client.activate();
-    stompClientRef.current = client;
+    mqttClient.on('close', () => {
+      console.log('🔌 MQTT 연결 끊김');
+      setIsConnected(false);
+      setRobotStatus(prev => ({ ...prev, isOnline: false }));
+    });
+
+    setClient(mqttClient);
 
     return () => {
-      if (client) client.deactivate();
+      if (mqttClient) mqttClient.end();
       if (peerConnection.current) peerConnection.current.close();
     };
-  }, [user, handleWebRTCOffer]);
+  }, [user]);
 
   // ✅ WebRTC 핸들러 함수 (Offer 처리)
-    const handleWebRTCOffer = useCallback(async (offer) => {
+    const handleWebRTCOffer = useCallback(async (offer, activeClient) => {
       try {
         if (peerConnection.current) peerConnection.current.close();
 
@@ -140,16 +159,13 @@ export const RobotProvider = ({ children }) => {
         };
 
         pc.onicecandidate = (event) => {
-          if (event.candidate && stompClientRef.current?.connected) {
-            stompClientRef.current.publish({
-              destination: '/pub/peer/ice',
-              body: JSON.stringify({
-                userId: user.id,
-                candidate: event.candidate.candidate,
-                sdpMid: event.candidate.sdpMid,
-                sdpMLineIndex: event.candidate.sdpMLineIndex
-              })
-            });
+          if (event.candidate && activeClient?.connected) {
+            activeClient.publish(`peer/${user?.id || '1'}/ice`, JSON.stringify({
+              userId: user?.id,
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex
+            }));
           }
         };
 
@@ -161,15 +177,12 @@ export const RobotProvider = ({ children }) => {
         await pc.setLocalDescription(answer);
         
         // 5. Answer 전송 (Signaling 서버로)
-        if (stompClientRef.current?.connected) {
-          stompClientRef.current.publish({
-            destination: '/pub/peer/answer',
-            body: JSON.stringify({
-              userId: user.id,
-              type: 'answer',
-              sdp: pc.localDescription.sdp
-            })
-          });
+        if (activeClient?.connected) {
+          activeClient.publish(`peer/${user?.id || '1'}/answer`, JSON.stringify({
+            userId: user?.id,
+            type: 'answer',
+            sdp: pc.localDescription.sdp
+          }));
         }
       } catch (error) {
         console.error("❌ WebRTC 연결 실패:", error);
@@ -178,37 +191,39 @@ export const RobotProvider = ({ children }) => {
 
   // 로봇 이동 제어 (STOMP 사용)
   const moveRobot = useCallback((linear, angular) => {
-    if (!stompClientRef.current?.connected) return;
+    if (!client?.connected) return;
 
-    const payload = { userId: user.id, type: 'MOVE', linear, angular };
-    stompClientRef.current.publish({
-      destination: '/pub/robot/control',
-      body: JSON.stringify(payload)
+    const payload = JSON.stringify({
+      userId: user?.id || 1,
+      type: "MOVE",
+      linear,
+      angular
     });
-  }, [user]);
+    
+    client.publish(`robot/${user?.id || '1'}/control`, payload);
+  }, [client, user]);
 
   // 비상 정지
   const emergencyStop = () => {
-    if (stompClientRef.current?.connected) {
-      const payload = { userId: user.id, type: 'EMERGENCY_STOP' };
-      stompClientRef.current.publish({
-        destination: '/pub/robot/control',
-        body: JSON.stringify(payload)
-      });
+    if (client?.connected) {
+      const payload = JSON.stringify({ userId: user?.id || 1, type: "EMERGENCY_STOP" });
+      client.publish(`robot/${user?.id || '1'}/control`, payload);
     }
-    setRobotStatus(prev => ({ ...prev, mode: 'emergency', speed: 0}));
+    setRobotStatus(prev => ({ ...prev, mode: 'manual', speed: 0}));
     addNotification({ type: 'alert', title: '🚨 비상 정지', message: '사용자가 로봇을 긴급 정지시켰습니다.', link: '/' });
   };
 
   // 모드 변경
   const toggleMode = () => {
     const newMode = robotStatus.mode === 'auto' ? 'manual' : 'auto';
-    if (stompClientRef.current?.connected) {
-      const payload = { userId: user.id, type: 'MODE_CHANGE', mode: newMode };
-      stompClientRef.current.publish({
-        destination: '/pub/robot/control',
-        body: JSON.stringify(payload)
+    if (client?.connected) {
+      const payload = JSON.stringify({
+        userId: user?.id || 1,
+        type: "MODE_CHANGE",
+        mode: newMode
       });
+      
+      client.publish(`robot/${user?.id || '1'}/control`, payload)
     }
     setRobotStatus(prev => ({ ...prev, mode: newMode }));
     addNotification({ type: 'robot', title: '모드 변경', message: `로봇이 ${newMode === 'auto' ? '자동' : '수동'} 모드로 전환되었습니다.`, link: '/' });
@@ -224,7 +239,7 @@ export const RobotProvider = ({ children }) => {
       await api.post('/robot/tts', {
         text,
         useClonedVoice: isVoiceCloned && useClonedVoice,
-        userId: user.id
+        userId: user?.id
       });
     } catch(e) {
       console.error("TTS 전송 실패", e);
@@ -243,7 +258,7 @@ export const RobotProvider = ({ children }) => {
     toast.info("목소리 학습 시작...");
     setTimeout(async () => {
       try {
-        await api.post('/robot/training/complete', { userId: user.id });
+        await api.post('/robot/training/complete', { userId: user?.id });
         setIsVoiceCloned(true);
         setUseClonedVoice(true);
         toast.success("학습 완료!");
@@ -256,7 +271,7 @@ export const RobotProvider = ({ children }) => {
 
   const { data: logs = [], refetch: refetchLogs } = useQuery({
     queryKey: ['logs', user?.id],
-    queryFn: async () => (await api.get(`/logs?userId=${user.id}`)).data,
+    queryFn: async () => (await api.get(`/logs?userId=${user?.id}`)).data,
     enabled: !!user?.id
   });
 
@@ -282,13 +297,9 @@ export const RobotProvider = ({ children }) => {
         catName: "테스트 냥이"
       };
 
-      const response = await api.post('/videos', dummyData);
-      if (response.status === 200 || response.status === 201) {
-        setVideos((prev) => [response.data, ...prev]);
-        toast.success("✅ 테스트 영상이 생성되었습니다!");
-      }
+      setVideos((prev) => [dummyData, ...prev]);
+      toast.success("✅ 테스트 영상이 생성되었습니다!");
     } catch (error) {
-      console.error(error);
       toast.error("영상 생성 실패");
     }
   };
@@ -318,7 +329,6 @@ export const RobotProvider = ({ children }) => {
       queryClient.invalidateQueries(['logs']);
       toast.success("로그 생성 완료");
     } catch(e) {
-      console.error(e);
       toast.error("로그 생성 실패");
     }
   };
@@ -375,7 +385,7 @@ export const RobotProvider = ({ children }) => {
 
   return (
     <RobotContext.Provider value={{
-      client: stompClientRef.current,
+      client,
       isConnected,
       remoteStream,
       robotStatus, isRobotLoading,
