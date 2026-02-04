@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
 import api from '../api/axios';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 
 const RobotContext = createContext();
 
@@ -18,6 +17,9 @@ export const RobotProvider = ({ children }) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const stompClientRef = useRef(null);
   const peerConnection = useRef(null);
+
+  const lastCommandTime = useRef(0);
+  const currentSpeed = useRef({ linear: 0.0, angular: 0.0 });
 
   /* 1. 로봇 상태 */
   const [robotStatus, setRobotStatus] = useState({
@@ -42,10 +44,16 @@ export const RobotProvider = ({ children }) => {
         const res = await api.get(`/robot/state?userId=${user.id}`);
         if (res.data) {
           setIsVoiceCloned(res.data.isVoiceTrained);
-          setRobotStatus(prev => ({ ...prev, mode: res.data.currentMode || 'manual'}));
+          setRobotStatus(prev => ({
+            ...prev,
+            mode: res.data.currentMode || 'manual',
+            battery: res.data.battery || prev.battery
+          }));
         }
       } catch (err) {
         console.error("초기 상태 로드 실패:", err);
+      } finally {
+        setIsRobotLoading(false);
       }
     };
     fetchInitialState();
@@ -61,7 +69,7 @@ export const RobotProvider = ({ children }) => {
       brokerURL: wsUrl,
       reconnectDelay: 5000,
       onConnect: () => {
-        console.log('✅ STOMP(데이터) 연결 성공!');
+        console.log('✅ STOMP 연결 성공!');
         setIsConnected(true);
         setRobotStatus(prev => ({ ...prev, isOnline: true}));
 
@@ -84,23 +92,25 @@ export const RobotProvider = ({ children }) => {
         });
 
         // WebRTC Offer
-        client.subscribe(`/sub/${user.id}/peer/offer`, (message) => {
+        client.subscribe(`/sub/peer/${user.id}/offer`, (message) => {
           console.log("📹 [STOMP] Offer 수신됨!");
           const offer = JSON.parse(message.body);
           handleWebRTCOffer(offer);
         });
 
         // ICE Candidate
-        client.subscribe(`/sub/${user.id}/peer/ice`, (message) => {
+        client.subscribe(`/sub/peer/${user.id}/ice`, (message) => {
           const payload = JSON.parse(message.body);
-          if (peerConnection.current) {
-            peerConnection.current.addIceCandidate(new RTCIceCandidate(payload));
+          if (peerConnection.current && peerConnection.current.setRemoteDescription) {
+            peerConnection.current.addIceCandidate(new RTCIceCandidate(payload))
+                .catch(e => console.error("ICE 추가 에러", e));
           }
         });
       },
       onDisconnect: () => {
         console.log('🔌 STOMP 연결 끊김');
         setIsConnected(false);
+        setRobotStatus(prev => ({ ...prev, isOnline: false }));
       },
     });
 
@@ -111,64 +121,63 @@ export const RobotProvider = ({ children }) => {
       if (client) client.deactivate();
       if (peerConnection.current) peerConnection.current.close();
     };
-  }, [user]);
+  }, [user, handleWebRTCOffer]);
 
   // ✅ WebRTC 핸들러 함수 (Offer 처리)
-    const handleWebRTCOffer = async (offer) => {
-    try {
-      if (peerConnection.current) {
-        peerConnection.current.close(); 
-      }
+    const handleWebRTCOffer = useCallback(async (offer) => {
+      try {
+        if (peerConnection.current) peerConnection.current.close();
 
-      // 1. PeerConnection 생성
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
+        // 1. PeerConnection 생성
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
 
-      // 2. 트랙(영상) 수신 이벤트 핸들러
-      pc.ontrack = (event) => {
-        console.log("🎥 스트림 수신 시작!");
-        setRemoteStream(event.streams[0]); 
-      };
+        // 2. 트랙(영상) 수신 이벤트 핸들러
+        pc.ontrack = (event) => {
+          console.log("🎥 스트림 수신 시작!");
+          setRemoteStream(event.streams[0]); 
+        };
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate && stompClientRef.current?.connected) {
+        pc.onicecandidate = (event) => {
+          if (event.candidate && stompClientRef.current?.connected) {
+            stompClientRef.current.publish({
+              destination: '/pub/peer/ice',
+              body: JSON.stringify({
+                userId: user.id,
+                candidate: event.candidate.candidate,
+                sdpMid: event.candidate.sdpMid,
+                sdpMLineIndex: event.candidate.sdpMLineIndex
+              })
+            });
+          }
+        };
+
+        peerConnection.current = pc;
+
+        // 4. Answer 전송
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        
+        // 5. Answer 전송 (Signaling 서버로)
+        if (stompClientRef.current?.connected) {
           stompClientRef.current.publish({
-            destination: '/pub/peer/ice',
+            destination: '/pub/peer/answer',
             body: JSON.stringify({
               userId: user.id,
-              candidate: event.candidate.candidate,
-              sdpMid: event.candidate.sdpMid,
-              sdpMLineIndex: event.candidate.sdpMLineIndex
+              type: 'answer',
+              sdp: pc.localDescription.sdp
             })
           });
         }
-      };
-
-      peerConnection.current = pc;
-      // 4. Answer 전송
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      
-      // 5. Answer 전송 (Signaling 서버로)
-      if (stompClientRef.current?.connected) {
-        stompClientRef.current.publish({
-          destination: '/pub/peer/answer',
-          body: JSON.stringify({
-            userId: user.id,
-            type: 'answer',
-            sdp: pc.localDescription.sdp
-          })
-        });
+      } catch (error) {
+        console.error("❌ WebRTC 연결 실패:", error);
       }
-    } catch (error) {
-      console.error("❌ WebRTC 연결 실패:", error);
-    }
-  };
+    }, [user]);
 
   // 로봇 이동 제어 (STOMP 사용)
-  const moveRobot = (linear, angular) => {
+  const moveRobot = useCallback((linear, angular) => {
     if (!stompClientRef.current?.connected) return;
 
     const payload = { userId: user.id, type: 'MOVE', linear, angular };
@@ -176,12 +185,12 @@ export const RobotProvider = ({ children }) => {
       destination: '/pub/robot/control',
       body: JSON.stringify(payload)
     });
-  };
+  }, [user]);
 
   // 비상 정지
   const emergencyStop = () => {
     if (stompClientRef.current?.connected) {
-      const payload = { userId: user.id, type: 'STOP' };
+      const payload = { userId: user.id, type: 'EMERGENCY_STOP' };
       stompClientRef.current.publish({
         destination: '/pub/robot/control',
         body: JSON.stringify(payload)
@@ -195,7 +204,7 @@ export const RobotProvider = ({ children }) => {
   const toggleMode = () => {
     const newMode = robotStatus.mode === 'auto' ? 'manual' : 'auto';
     if (stompClientRef.current?.connected) {
-      const payload = { userId: user.id, type: 'MODE', value: newMode };
+      const payload = { userId: user.id, type: 'MODE_CHANGE', mode: newMode };
       stompClientRef.current.publish({
         destination: '/pub/robot/control',
         body: JSON.stringify(payload)
@@ -217,10 +226,19 @@ export const RobotProvider = ({ children }) => {
         useClonedVoice: isVoiceCloned && useClonedVoice,
         userId: user.id
       });
-    } catch(e) {}
+    } catch(e) {
+      console.error("TTS 전송 실패", e);
+    }
   };
-  const startWalkieTalkie = () => { setIsRecording(true); };
-  const stopWalkieTalkie = () => { if (isRecording) { setIsRecording(false); addNotification({ type: 'robot', title: '📡 무전 전송', message: '사용자의 음성을 로봇으로 전송했습니다.', link: '/'}); }};
+
+  const startWalkieTalkie = () => setIsRecording(true);
+  const stopWalkieTalkie = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      addNotification({ type: 'robot', title: '📡 무전 전송', message: '사용자의 음성을 로봇으로 전송했습니다.', link: '/'});
+    }
+  };
+
   const trainVoice = async () => {
     toast.info("목소리 학습 시작...");
     setTimeout(async () => {
@@ -236,8 +254,20 @@ export const RobotProvider = ({ children }) => {
     }, 3000);
   };
 
-  const { data: logs = [], refetch: refetchLogs } = useQuery({ queryKey: ['logs', user?.id], queryFn: async () => (await api.get(`/logs?userId=${user.id}`)).data, enabled: !!user?.id });
-  const deleteLogMutation = useMutation({ mutationFn: (id) => api.delete(`/logs/${id}`), onSuccess: () => { queryClient.invalidateQueries(['logs']); toast.success("삭제되었습니다."); }});
+  const { data: logs = [], refetch: refetchLogs } = useQuery({
+    queryKey: ['logs', user?.id],
+    queryFn: async () => (await api.get(`/logs?userId=${user.id}`)).data,
+    enabled: !!user?.id
+  });
+
+  const deleteLogMutation = useMutation({
+    mutationFn: (id) => api.delete(`/logs/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['logs']);
+      toast.success("삭제되었습니다.");
+    }
+  });
+
   const addTestVideo = async () => {
     try {
       const dummyData = {
@@ -252,15 +282,17 @@ export const RobotProvider = ({ children }) => {
         catName: "테스트 냥이"
       };
 
-      const response = await axios.post('/api/videos', dummyData);
+      const response = await api.post('/videos', dummyData);
       if (response.status === 200 || response.status === 201) {
         setVideos((prev) => [response.data, ...prev]);
         toast.success("✅ 테스트 영상이 생성되었습니다!");
       }
     } catch (error) {
+      console.error(error);
       toast.error("영상 생성 실패");
     }
   };
+
   const deleteVideo = async (id) => {
     try {
       await api.delete(`/videos/${id}`);
@@ -271,11 +303,27 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const addTestLog = async () => { if (!user) return; try { await api.post('/logs', { userId: user.id, rentId: 999, vehicleId: 101, mode: "자동 모드", status: "completed", details: "테스트 로그" }); queryClient.invalidateQueries(['logs']); toast.success("로그 생성 완료"); } catch(e) {console.error(e); toast.error("로그 생성 실패")} };
+  const addTestLog = async () => {
+    if (!user) return;
+    
+    try {
+      await api.post('/logs', {
+        userId: user.id,
+        rentId: 999,
+        vehicleId: 101,
+        mode: "자동 모드",
+        status: "completed",
+        details: "테스트 로그"
+      });
+      queryClient.invalidateQueries(['logs']);
+      toast.success("로그 생성 완료");
+    } catch(e) {
+      console.error(e);
+      toast.error("로그 생성 실패");
+    }
+  };
 
   /* 5. 키보드 제어 */
-  // 현재 속도를 기억
-  const currentSpeed = useRef({ linear: 0.0, angular: 0.0 });
   // 속도 설정 상수
   const SPEED_STEP = 0.2;
   const MAX_SPEED = 2.0;
@@ -284,6 +332,10 @@ export const RobotProvider = ({ children }) => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
       if (robotStatus.mode === 'auto') return;
+
+      const now = Date.now();
+      if (now - lastCommandTime.current < 100) return;
+      lastCommandTime.current = now;
 
       const key = e.key.toLowerCase();
       let isChanged = false;
@@ -318,17 +370,14 @@ export const RobotProvider = ({ children }) => {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [robotStatus.mode]);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [robotStatus.mode, moveRobot]);
 
   return (
     <RobotContext.Provider value={{
       client: stompClientRef.current,
       isConnected,
-      remoteStream, // ✅ 대시보드에서 영상 띄우기 위해 필수
+      remoteStream,
       robotStatus, isRobotLoading,
       isVideoOn, toggleVideo,
       moveRobot, emergencyStop, toggleMode,
