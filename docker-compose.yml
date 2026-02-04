@@ -54,8 +54,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
 
       MQTT_BROKER_URL: tcp://robot_mqtt:1883
-      MQTT_USERNAME: ${MQTT_USERNAME}
-      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      # MQTT_USERNAME: ${MQTT_USERNAME}
+      # MQTT_PASSWORD: ${MQTT_PASSWORD}
     networks:
       - robot_network
   

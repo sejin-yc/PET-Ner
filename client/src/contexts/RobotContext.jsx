@@ -76,8 +76,8 @@ export const RobotProvider = ({ children }) => {
       connectTimeout: 30 * 1000,
       clean: true,
       path: '/mqtt',
-      username: 'ssafy',
-      password: 'ssafy1234'
+      // username: 'ssafy',
+      // password: 'ssafy1234'
     });
 
     mqttClient.on('connect', () => {
