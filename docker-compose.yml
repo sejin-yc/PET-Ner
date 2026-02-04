@@ -73,6 +73,10 @@ services:
       COSYVOICE_MODEL_DIR: /root/.cache/modelscope/hub/FunAudioLLM/Fun-CosyVoice3-0___5B-2512
       # GPU FP16 모드 (메모리 절약, 속도 향상)
       USE_FP16: "true"
+      # 스트리밍 추론 (피크 메모리 감소, OOM 방지)
+      USE_STREAM_INFERENCE: "true"
+      # 합성 후 CUDA 캐시 정리
+      FREE_CUDA_CACHE_AFTER_SYNTH: "true"
     networks:
       - robot_network
     # GPU 할당 (NVIDIA Container Toolkit 필요)

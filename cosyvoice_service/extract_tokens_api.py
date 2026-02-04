@@ -4,7 +4,9 @@ CosyVoice 음성 토큰 추출 + TTS 합성 API 서버
 - /extract_tokens: 음성 -> 토큰
 - /synthesize: 텍스트 + 토큰 -> WAV (Jetson과 동일한 추론 엔진 사용, 현재 환경에서 테스트용)
 """
+import asyncio
 import os
+import re
 import sys
 import json
 import logging
@@ -54,6 +56,25 @@ extractor = None
 inference_engine = None  # TTS 합성용 (서버 기동 시 미리 로드 가능)
 
 
+def _resolve_model_dir() -> str:
+    """이미 받은 모델이 있으면 로컬 경로 사용, 없을 때만 원격 ID (재다운로드 방지)."""
+    env_dir = os.getenv("COSYVOICE_MODEL_DIR")
+    if env_dir and Path(env_dir).exists() and (Path(env_dir) / "cosyvoice3.yaml").exists():
+        return env_dir
+    if env_dir:
+        return env_dir  # Docker 등에서 절대 경로 지정한 경우 그대로 사용
+    remote_id = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+    candidates = [
+        _script_dir.parent / "cosyvoice_models" / "hub" / "FunAudioLLM" / "Fun-CosyVoice3-0___5B-2512",
+        _script_dir.parent / "cosyvoice_models" / "hub" / "FunAudioLLM" / "Fun-CosyVoice3-0.5B-2512",
+        _cosy_root / "pretrained_models" / "Fun-CosyVoice3-0.5B",
+    ]
+    for p in candidates:
+        if p.exists() and (p / "cosyvoice3.yaml").exists():
+            return str(p)
+    return remote_id
+
+
 def _log_vram(label: str = ""):
     """GPU 사용 중이면 VRAM 할당/예약/피크를 GB 단위로 로그 (LOG_VRAM=1 이면 synthesize 시에도 출력)"""
     if not torch.cuda.is_available():
@@ -66,11 +87,11 @@ def _log_vram(label: str = ""):
 
 
 def _load_inference_engine_sync():
-    """TTS 추론 엔진 동기 로드 (블로킹)"""
+    """TTS 추론 엔진 동기 로드 (블로킹). 기본 FP16으로 VRAM 절약."""
     global inference_engine
     from cosyvoice.cli.inference_engine import JetsonInferenceEngine
-    model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
-    use_fp16 = os.getenv("USE_FP16", "false").lower() in ("true", "1", "yes")
+    model_dir = _resolve_model_dir()
+    use_fp16 = os.getenv("USE_FP16", "true").lower() in ("true", "1", "yes")
     logger.info(f"GPU available: {torch.cuda.is_available()}, FP16: {use_fp16}")
     inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=use_fp16)
     _log_vram("(TTS 모델 로드 직후)")
@@ -81,7 +102,7 @@ async def lifespan(app: FastAPI):
     """서버 시작/종료 시 토큰 추출 모델 + (선택) TTS 추론 엔진 로드/해제"""
     global extractor
     import asyncio
-    model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
+    model_dir = _resolve_model_dir()
     jetson_tts_only = os.getenv("JETSON_TTS_ONLY", "0").lower() in ("1", "true", "yes")
     try:
         if not jetson_tts_only and SpeechTokenExtractor is not None:
@@ -146,68 +167,64 @@ async def extract_tokens(
         
         logger.info(f"Received audio file: {audio_file.filename}, content_type: {audio_file.content_type}")
         
-        # WebM/기타 형식을 WAV로 변환 (출력 파일명을 다르게 설정)
+        # 이미 WAV면 변환 없이 그대로 사용 (16kHz 모노 WAV 가정, ref와 동일 입력으로 비교 가능)
         base_name = audio_file.filename.rsplit('.', 1)[0]
-        temp_wav_path = f"/tmp/{base_name}_converted.wav"
-        
-        # 1. 먼저 ffmpeg로 변환 시도 (WebM/Opus 등 지원)
-        logger.info(f"Attempting to convert audio file: {temp_audio_path} -> {temp_wav_path}")
-        try:
-            import subprocess
-            logger.info("Checking if ffmpeg is available...")
-            # ffmpeg 존재 확인
-            check_result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
-            if check_result.returncode != 0:
-                raise FileNotFoundError("ffmpeg not found in PATH")
-            
-            logger.info("ffmpeg found, starting conversion...")
-            result = subprocess.run(
-                ['ffmpeg', '-i', temp_audio_path, '-ar', '16000', '-ac', '1', '-f', 'wav', temp_wav_path, '-y'],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            logger.info(f"ffmpeg return code: {result.returncode}")
-            if result.returncode == 0 and os.path.exists(temp_wav_path):
-                logger.info(f"Successfully converted audio to WAV using ffmpeg: {temp_wav_path}")
-            else:
-                logger.error(f"ffmpeg stderr: {result.stderr}")
-                raise Exception(f"ffmpeg conversion failed: {result.stderr}")
-        except FileNotFoundError as e:
-            logger.warning(f"ffmpeg not found: {e}, trying torchaudio...")
-            # 2. ffmpeg가 없으면 torchaudio로 시도
+        ext = audio_file.filename.rsplit('.', 1)[-1].lower() if '.' in audio_file.filename else ''
+        if ext == 'wav':
+            temp_wav_path = temp_audio_path
+            logger.info(f"WAV 파일 → 변환 생략, 원본 사용: {temp_wav_path}")
+        else:
+            # WebM/기타 형식만 WAV로 변환
+            temp_wav_path = f"/tmp/{base_name}_converted.wav"
+            logger.info(f"Non-WAV → 변환 시도: {temp_audio_path} -> {temp_wav_path}")
             try:
-                waveform, sample_rate = torchaudio.load(temp_audio_path)
-                logger.info(f"Successfully loaded audio with torchaudio: sample_rate={sample_rate}")
-                
-                # 모노로 변환 (스테레오인 경우)
-                if waveform.shape[0] > 1:
-                    waveform = waveform.mean(dim=0, keepdim=True)
-                
-                # 16kHz로 리샘플링
-                if sample_rate != 16000:
-                    resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
-                    waveform = resampler(waveform)
-                
-                # WAV 파일로 저장
-                torchaudio.save(temp_wav_path, waveform, 16000)
-                logger.info(f"Converted audio to WAV using torchaudio: {temp_wav_path}")
-            except Exception as torch_error:
-                logger.error(f"torchaudio conversion failed: {torch_error}")
-                # 변환 실패 시 원본 파일 사용 (이미 WAV일 수도 있음)
+                import subprocess
+                check_result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
+                if check_result.returncode != 0:
+                    raise FileNotFoundError("ffmpeg not found in PATH")
+                result = subprocess.run(
+                    ['ffmpeg', '-i', temp_audio_path, '-ar', '16000', '-ac', '1', '-f', 'wav', temp_wav_path, '-y'],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0 and os.path.exists(temp_wav_path):
+                    logger.info(f"Converted to WAV using ffmpeg: {temp_wav_path}")
+                else:
+                    raise Exception(f"ffmpeg failed: {result.stderr}")
+            except FileNotFoundError:
+                try:
+                    waveform, sample_rate = torchaudio.load(temp_audio_path)
+                    if waveform.shape[0] > 1:
+                        waveform = waveform.mean(dim=0, keepdim=True)
+                    if sample_rate != 16000:
+                        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+                        waveform = resampler(waveform)
+                    torchaudio.save(temp_wav_path, waveform, 16000)
+                    logger.info(f"Converted to WAV using torchaudio: {temp_wav_path}")
+                except Exception as torch_error:
+                    logger.error(f"torchaudio conversion failed: {torch_error}")
+                    temp_wav_path = temp_audio_path
+                    logger.info(f"Using original file as-is: {temp_wav_path}")
+            except Exception as ffmpeg_error:
+                logger.error(f"ffmpeg conversion failed: {ffmpeg_error}")
                 temp_wav_path = temp_audio_path
                 logger.info(f"Using original file as-is: {temp_wav_path}")
-        except Exception as ffmpeg_error:
-            logger.error(f"ffmpeg conversion failed: {ffmpeg_error}")
-            # 변환 실패 시 원본 파일 사용
-            temp_wav_path = temp_audio_path
-            logger.info(f"Using original file as-is: {temp_wav_path}")
         
         # 음성 토큰 추출 (WAV 파일 사용)
+        # CosyVoice3는 "You are a helpful assistant.<|endofprompt|>" 프리픽스 필요
+        # (1_token_extract.py와 동일 - 이 프리픽스가 없으면 한국어 발음이 중국어처럼 됨)
+        full_prompt_text = f"You are a helpful assistant.<|endofprompt|>{prompt_text}"
         logger.info(f"Extracting tokens from WAV file: {temp_wav_path}")
-        speaker_tokens = extractor.extract_speaker_tokens(
-            prompt_text=prompt_text,
-            prompt_wav=temp_wav_path
+        logger.info(f"prompt_text (with prefix): {full_prompt_text[:80]}...")
+        # 블로킹 호출을 스레드 풀에서 실행 → 이벤트 루프 유지, /health 등 다른 요청 정상 응답
+        loop = asyncio.get_event_loop()
+        speaker_tokens = await loop.run_in_executor(
+            None,
+            lambda: extractor.extract_speaker_tokens(
+                prompt_text=full_prompt_text,
+                prompt_wav=temp_wav_path
+            )
         )
         
         # CPU로 변환하고 리스트로 변환 (JSON 직렬화 가능하도록)
@@ -242,6 +259,11 @@ async def extract_tokens(
         if temp_wav_path and os.path.exists(temp_wav_path) and temp_wav_path != temp_audio_path:
             os.remove(temp_wav_path)
         
+        # 추출 순서 영향 완화: 다음 요청 전에 CUDA 캐시 정리 (첫 번째만 괜찮고 나머지 엉망일 때 시도)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        
         logger.info("Token extraction completed successfully")
         return JSONResponse(content={"success": True, "tokens": result})
         
@@ -255,15 +277,29 @@ async def extract_tokens(
         raise HTTPException(status_code=500, detail=f"Token extraction failed: {str(e)}")
 
 
-def _get_inference_engine():
-    """TTS 합성용 JetsonInferenceEngine (서버 기동 시 미리 로드됐으면 그대로 사용)"""
+def _get_inference_engine(force_fp16=None):
+    """TTS 합성용 JetsonInferenceEngine. force_fp16=True면 FP16으로 로드 (OOM 완화용)."""
     global inference_engine
+    if force_fp16 is not None:
+        # OOM 재시도 등으로 FP16 강제 시 기존 엔진 제거 후 재생성
+        if inference_engine is not None:
+            try:
+                del inference_engine
+            except Exception:
+                pass
+            inference_engine = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
     if inference_engine is None:
         import time
         t0 = time.perf_counter()
         from cosyvoice.cli.inference_engine import JetsonInferenceEngine
-        model_dir = os.getenv("COSYVOICE_MODEL_DIR", "FunAudioLLM/Fun-CosyVoice3-0.5B-2512")
-        use_fp16 = os.getenv("USE_FP16", "false").lower() in ("true", "1", "yes")
+        model_dir = _resolve_model_dir()
+        use_fp16 = (
+            force_fp16 if force_fp16 is not None
+            else os.getenv("USE_FP16", "true").lower() in ("true", "1", "yes")
+        )
         logger.warning("TTS 엔진이 아직 로드되지 않음. 지금 로드 중 (1~2분 소요, PRELOAD_TTS=true 로 서버 기동 시 미리 로드 권장)...")
         logger.info(f"GPU available: {torch.cuda.is_available()}, FP16: {use_fp16}")
         inference_engine = JetsonInferenceEngine(model_dir=model_dir, fp16=use_fp16)
@@ -271,8 +307,16 @@ def _get_inference_engine():
     return inference_engine
 
 
+def _contains_hangul(text: str) -> bool:
+    """한글이 포함되어 있으면 True (wetext 중국어/영어 정규화는 한글에 부적합 → text_frontend=False 사용)"""
+    return bool(re.search(r'[\uAC00-\uD7A3\u3130-\u318F]', text or ''))
+
+
 def _json_tokens_to_tensors(tokens: dict) -> dict:
     """DB/API에서 온 JSON 토큰을 JetsonInferenceEngine이 기대하는 tensor 형태로 변환"""
+    # 기본 토큰은 API 응답 그대로 저장돼 { "success", "tokens" } 래핑 → 내부 tokens만 사용
+    if "tokens" in tokens and isinstance(tokens.get("tokens"), dict):
+        tokens = tokens["tokens"]
     out = {}
     float_keys = {"prompt_speech_feat", "llm_embedding", "flow_embedding"}
     for k, v in tokens.items():
@@ -307,10 +351,23 @@ async def synthesize(
     Returns:
         WAV 오디오 바이너리 (audio/wav)
     """
+    logger.info("CosyVoice /synthesize 요청 수신 (GPU 사용)")
     if not text or not tokens:
         raise HTTPException(status_code=400, detail="text and tokens are required")
+
+    def _do_synth(engine, speaker_tensors, use_stream, text_frontend):
+        chunks = []
+        for model_output in engine.inference_with_tokens(
+            text, speaker_tensors, stream=use_stream, speed=1.0, text_frontend=text_frontend
+        ):
+            chunks.append(model_output["tts_speech"].cpu())
+        return chunks
+
     try:
         import time
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         if os.getenv("LOG_VRAM", "").lower() in ("1", "true", "yes") and torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
         t0 = time.perf_counter()
@@ -318,13 +375,35 @@ async def synthesize(
         engine = _get_inference_engine()
         logger.info("TTS 추론 시작 (엔진 미리 로드됨)" if already_loaded else "TTS 추론 시작 (방금 엔진 로드 완료)")
         speaker_tokens = _json_tokens_to_tensors(tokens)
-        chunks = []
-        for model_output in engine.inference_with_tokens(
-            text, speaker_tokens, stream=False, speed=1.0, text_frontend=True
-        ):
-            chunks.append(model_output["tts_speech"].cpu())
+        use_stream = os.getenv("USE_STREAM_INFERENCE", "false").lower() in ("true", "1", "yes")
+        text_frontend = not _contains_hangul(text)
+        if not text_frontend:
+            logger.info("한글 감지 → text_frontend=False (wetext 정규화 생략)")
+        chunks = None
+        last_error = None
+        for attempt in range(2):
+            try:
+                chunks = _do_synth(engine, speaker_tokens, use_stream, text_frontend)
+                break
+            except RuntimeError as e:
+                err_msg = str(e).lower()
+                if "out of memory" in err_msg or "cuda error" in err_msg:
+                    last_error = e
+                    if attempt == 0 and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                        logger.warning("CUDA OOM → reloading engine with FP16 and retrying once...")
+                        engine = _get_inference_engine(force_fp16=True)
+                        continue
+                raise
+        if chunks is None:
+            logger.error("Synthesis failed after retry: %s", last_error)
+            raise last_error or RuntimeError("Synthesis failed")
         t1 = time.perf_counter()
         logger.info(f"TTS 추론 소요: {t1 - t0:.2f}초 (텍스트 길이: {len(text)})")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            logger.debug("CUDA cache cleared after synthesis")
         if os.getenv("LOG_VRAM", "").lower() in ("1", "true", "yes"):
             _log_vram("(방금 추론 직후)")
         if not chunks:
@@ -343,6 +422,70 @@ async def synthesize(
         logger.error(f"Synthesis failed: {e}", exc_info=True)
         detail = f"{type(e).__name__}: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+# Edge TTS: 기본 음성용 (test_edge_tts.py와 동일 방식)
+try:
+    from edge_tts import Communicate as EdgeCommunicate
+except ImportError:
+    EdgeCommunicate = None
+EDGE_TTS_VOICES = {"M": "ko-KR-InJoonNeural", "F": "ko-KR-SunHiNeural"}
+
+
+@app.post("/synthesize_edge_tts")
+async def synthesize_edge_tts(text: str = Body(..., embed=True), gender: str = Body("M", embed=True)):
+    """
+    Edge TTS로 기본 음성 합성 (GPU 미사용).
+    - gender: "M" → InJoon (남), "F" → SunHi (여). 없으면 M.
+    - 반환: audio/wav (모노, 16비트, 44100 Hz)
+    """
+    logger.info("Edge TTS 요청 수신 (GPU 미사용 경로)")
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
+    if EdgeCommunicate is None:
+        raise HTTPException(status_code=503, detail="edge-tts not installed")
+    voice = EDGE_TTS_VOICES.get((gender or "M").upper(), EDGE_TTS_VOICES["M"])
+    try:
+        communicate = EdgeCommunicate(text.strip(), voice)
+        tmp_mp3 = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False).name
+        tmp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
+        try:
+            await communicate.save(tmp_mp3)
+            # WAV 변환: 모노, 16비트, 44.1 kHz
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", tmp_mp3,
+                    "-ac", "1", "-ar", "44100", "-acodec", "pcm_s16le", "-f", "wav", tmp_wav
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0 or not os.path.exists(tmp_wav):
+                raise RuntimeError(f"ffmpeg WAV 변환 실패: {result.stderr or result.stdout}")
+            with open(tmp_wav, "rb") as rf:
+                audio_bytes = rf.read()
+            # 확인용 저장 (Docker: /app/uploads/edge_tts_output, 로컬: cosyvoice_service/uploads/edge_tts_output)
+            import time
+            save_dir = Path("/app/uploads/edge_tts_output") if Path("/app/uploads").exists() else _script_dir / "uploads" / "edge_tts_output"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+            save_name = f"edge_tts_{gender}_{ts}.wav"
+            save_path = save_dir / save_name
+            with open(save_path, "wb") as wf:
+                wf.write(audio_bytes)
+            logger.info(f"Edge TTS OK: voice={voice}, WAV len={len(audio_bytes)} bytes, 저장: {save_path}")
+            return Response(content=audio_bytes, media_type="audio/wav")
+        finally:
+            for p in (tmp_mp3, tmp_wav):
+                if os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
+    except Exception as e:
+        logger.error(f"Edge TTS failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")

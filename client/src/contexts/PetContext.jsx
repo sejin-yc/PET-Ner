@@ -21,7 +21,7 @@ export const CatProvider = ({ children }) => {
   const fetchCats = async (userId) => {
     try {
       // ⚠️ api 객체에는 이미 '/api'가 포함되어 있으므로 '/cats'만 씁니다.
-      const res = await api.get(`/cats?userId=${userId}`);
+      const res = await api.get(`/user/cats?userId=${userId}`);
       setCats(res.data);
     } catch (err) {
       console.error("고양이 목록 불러오기 실패:", err);
@@ -34,7 +34,7 @@ export const CatProvider = ({ children }) => {
 
     try {
       // 서버로 데이터 전송 (userId 포함)
-      await api.post('/cats', {
+      await api.post('/user/cats', {
         ...catData,
         userId: user.id
       });

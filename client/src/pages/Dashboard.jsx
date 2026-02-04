@@ -22,10 +22,8 @@ const Dashboard = () => {
   const [ttsStatus, setTtsStatus] = useState(null); // 'generating' | 'generated' | 'playing' | 'play_error' | 'gen_error'
   const [ttsStatusMessage, setTtsStatusMessage] = useState("");
   const [showSkeleton, setShowSkeleton] = useState(true);
-  /** 학습한 사람이 기본 음성 사용 선택 (품질이 마음에 안 들 때) */
-  const [useDefaultVoiceForTts, setUseDefaultVoiceForTts] = useState(false);
 
-  /** 내 목소리 토큰으로 TTS 합성 후 로컬 재생. 생성 성공/실패와 재생 성공/실패를 구분해 표시 */
+  /** TTS 합성 후 로컬 재생. 토글이 "기본 목소리"면 Edge TTS, "내 목소리"면 CosyVoice(학습 목소리) */
   const playTtsWithVoice = async (text) => {
     if (!user?.id || !text.trim()) return;
     setTtsLoading(true);
@@ -33,11 +31,17 @@ const Dashboard = () => {
     setTtsStatusMessage('음성 생성 중...');
     try {
       const userId = Number(user.id);
-      const params = new URLSearchParams({ userId, text: text.trim() });
-      if (useDefaultVoiceForTts) params.set('useDefaultVoice', 'true');
-      console.log('[TTS] 요청 userId=', userId, 'useDefaultVoice=', useDefaultVoiceForTts);
+      const useDefaultVoice = !useClonedVoice;
+      const textTrimmed = text.trim();
+      const body = { userId, text: textTrimmed, useDefaultVoice };
+      const params = new URLSearchParams({ userId: String(userId), text: textTrimmed, useDefaultVoice: String(useDefaultVoice) });
+      console.log('[TTS] userId=', userId, 'useClonedVoice=', useClonedVoice, 'useDefaultVoice=', useDefaultVoice);
       const base = 'http://localhost:8080/user/voice';
-      const res = await axios.post(`${base}/tts/speak?${params}`, null, { responseType: 'arraybuffer', validateStatus: () => true });
+      const res = await axios.post(`${base}/tts/speak?${params}`, body, {
+        headers: { 'Content-Type': 'application/json' },
+        responseType: 'arraybuffer',
+        validateStatus: () => true,
+      });
       if (res.status !== 200) {
         const d = res.data;
         let msg = res.status === 404
@@ -116,17 +120,12 @@ const Dashboard = () => {
     }
   };
 
-  /** TTS 전송 핸들러: useClonedVoice에 따라 내 목소리 또는 기본 TTS 사용 */
+  /** TTS 재생: 토글이 "내 목소리"면 학습 목소리(CosyVoice), "기본 목소리"면 Edge TTS */
   const handleTTS = async () => {
     if (!ttsText.trim()) return;
     const text = ttsText;
     setTtsText('');
-    
-    if (useClonedVoice && isVoiceCloned) {
-      await playTtsWithVoice(text);
-    } else {
-      sendTTS(text);
-    }
+    await playTtsWithVoice(text);
   };
   
   // 로딩 스켈레톤 처리
@@ -274,21 +273,10 @@ const Dashboard = () => {
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => isVoiceCloned && setUseClonedVoice(!useClonedVoice)}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setUseClonedVoice(!useClonedVoice)}>
               <div className={`w-10 h-5 rounded-full relative transition-colors ${useClonedVoice ? 'bg-indigo-600' : 'bg-gray-300'}`}><div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${useClonedVoice ? 'left-6' : 'left-1'}`} /></div>
-              <span className={`text-xs ${useClonedVoice ? 'text-indigo-700 font-medium' : 'text-gray-400'}`}>{useClonedVoice ? '내 목소리로 출력' : '기본 기계음 사용'}</span>
+              <span className={`text-xs ${useClonedVoice ? 'text-indigo-700 font-medium' : 'text-gray-400'}`}>{useClonedVoice ? '내 목소리 사용하기' : '기본 목소리 사용하기'}</span>
             </div>
-            {isVoiceCloned && (
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={useDefaultVoiceForTts}
-                  onChange={(e) => setUseDefaultVoiceForTts(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>기본 음성 사용 (학습 품질이 마음에 안 들 때)</span>
-              </label>
-            )}
           </div>
           <div className="flex gap-2">
             <input 

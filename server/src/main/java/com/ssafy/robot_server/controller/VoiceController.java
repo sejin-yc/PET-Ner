@@ -3,6 +3,7 @@ package com.ssafy.robot_server.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.robot_server.domain.User;
 import com.ssafy.robot_server.domain.UserVoice;
+import com.ssafy.robot_server.dto.TtsSpeakRequest;
 import com.ssafy.robot_server.repository.UserRepository;
 import com.ssafy.robot_server.repository.UserVoiceRepository;
 import com.ssafy.robot_server.service.DefaultTokenService;
@@ -212,30 +213,39 @@ public class VoiceController {
     }
 
     /**
-     * TTS: 사용자 입력 텍스트 + 해당 사용자 음성 토큰으로 합성 음성 반환
-     * 경로는 반드시 /tts/speak 만 사용 (POST /speak 은 GET /{userId} 와 충돌하여 405 발생)
+     * TTS 합성 (WAV 반환).
+     * 1) DB에 목소리 토큰 있음 + useDefaultVoice=false → CosyVoice 합성 (학습 목소리).
+     * 2) DB에 토큰 없음 또는 useDefaultVoice=true → Edge TTS 기본 음성 (user 성별 반영, 없으면 남성).
      */
     @PostMapping("/tts/speak")
-    @Operation(summary = "TTS 합성 (텍스트 + 사용자 음성 토큰 → WAV)")
+    @Operation(summary = "TTS 합성 (텍스트 → WAV, 학습 목소리 또는 기본 음성)")
     public ResponseEntity<?> speak(
-            @RequestParam("userId") Long userId,
-            @RequestParam("text") String text,
-            @RequestParam(required = false, defaultValue = "false") boolean useDefaultVoice) {
-        System.out.println("[voice/speak] 요청 userId=" + userId + " useDefaultVoice=" + useDefaultVoice);
+            @RequestBody(required = false) TtsSpeakRequest req,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String text,
+            @RequestParam(required = false) Boolean useDefaultVoiceParam) {
+        Long uid = (req != null && req.getUserId() != null) ? req.getUserId() : userId;
+        String textVal = (req != null && req.getText() != null) ? req.getText() : text;
+        boolean useDefaultVoice = req != null
+                ? req.isUseDefaultVoice()
+                : (Boolean.TRUE.equals(useDefaultVoiceParam));
+        if (uid == null || textVal == null || textVal.isBlank()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "userId와 text는 필수입니다. JSON 본문: { userId, text, useDefaultVoice } 또는 쿼리: userId, text, useDefaultVoice");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+        userId = uid;
+        text = textVal;
         Optional<UserVoice> opt = userVoiceRepository.findByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId);
         if (opt.isEmpty()) {
             opt = userVoiceRepository.findFirstByUserIdOrderByCreatedAtDesc(userId);
-            if (opt.isPresent()) {
-                System.out.println("[voice/speak] userId=" + userId + " 활성 행 없음 → 같은 user_id 최신 행 사용 (id=" + opt.get().getId() + ")");
-            }
         }
-        String speechTokensJson;
-        String tokenSource; // 로그용: "user_voice" 또는 "default_{profileId}"
         boolean useDefault = useDefaultVoice || opt.isEmpty();
+        System.out.println("[voice/speak] userId=" + userId + " useDefaultVoice=" + useDefaultVoice + " hasTokens=" + opt.isPresent() + " → useDefault=" + useDefault + " " + (useDefault ? "→ Edge TTS" : "→ CosyVoice"));
 
         if (useDefault) {
-            // useDefaultVoice 요청이거나 UserVoice 없음 → 기본 토큰 사용
-            System.out.println("[voice/speak] userId=" + userId + (useDefaultVoice ? " 기본 음성 사용 요청 → 기본 토큰 사용" : " UserVoice 없음 → 기본 토큰 사용"));
+            // 기본 음성: Edge TTS (GPU 미사용, 한국어 SunHi/InJoon)
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isEmpty()) {
                 Map<String, Object> error = new HashMap<>();
@@ -244,42 +254,68 @@ public class VoiceController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
             }
             User user = userOpt.get();
+            // DB에 성별 없거나 M/F 외 값이면 M 사용
+            String gender = (user.getGender() != null && ("M".equalsIgnoreCase(user.getGender()) || "F".equalsIgnoreCase(user.getGender())))
+                    ? user.getGender().toUpperCase() : "M";
             try {
-                String profileId = defaultTokenService.getProfileId(user.getAge(), user.getGender());
-                Map<String, Object> defaultTokens = defaultTokenService.loadDefaultTokens(profileId);
-                speechTokensJson = objectMapper.writeValueAsString(defaultTokens);
-                tokenSource = "default_" + profileId;
-                System.out.println("[voice/speak] 기본 토큰 로드 완료: " + profileId);
-            } catch (IOException e) {
-                System.err.println("[voice/speak] 기본 토큰 로드 실패: " + e.getMessage());
+                Map<String, Object> edgeBody = new HashMap<>();
+                edgeBody.put("text", text);
+                edgeBody.put("gender", gender);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(edgeBody, headers);
+                String edgeUrl = cosyvoiceServiceUrl + "/synthesize_edge_tts";
+                System.out.println("[voice/speak] Edge TTS 호출: " + edgeUrl + " gender=" + gender);
+                ResponseEntity<byte[]> response = restTemplate.postForEntity(edgeUrl, requestEntity, byte[].class);
+                if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                    HttpHeaders outHeaders = new HttpHeaders();
+                    outHeaders.setContentType(MediaType.parseMediaType("audio/wav"));
+                    return new ResponseEntity<>(response.getBody(), outHeaders, HttpStatus.OK);
+                }
                 Map<String, Object> error = new HashMap<>();
                 error.put("success", false);
-                error.put("message", "학습된 목소리가 없고, 기본 음성 토큰도 준비되지 않았습니다. 프로필(나이/성별)을 설정하거나 목소리를 학습해 주세요.");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+                error.put("message", "기본 음성 합성 실패 (Edge TTS 응답 이상)");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            } catch (HttpStatusCodeException e) {
+                System.err.println("[voice/speak] Edge TTS 오류: " + e.getStatusCode() + " " + e.getResponseBodyAsString());
+                Map<String, Object> error = new HashMap<>();
+                String detail = e.getMessage();
+                try {
+                    String body = e.getResponseBodyAsString();
+                    if (body != null && !body.isBlank()) {
+                        Map<?, ?> json = objectMapper.readValue(body, Map.class);
+                        if (json.containsKey("detail")) detail = String.valueOf(json.get("detail"));
+                    }
+                } catch (Exception ignored) { }
+                error.put("success", false);
+                error.put("message", "기본 음성 합성 실패: " + detail);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "기본 음성 합성 실패: " + e.getMessage());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
             }
         } else {
-            System.out.println("[voice/speak] userId=" + userId + " 토큰 조회됨 (voiceId=" + opt.get().getId() + "), CosyVoice 호출");
             UserVoice voice = opt.get();
-            speechTokensJson = voice.getSpeechTokens();
-            tokenSource = "user_voice_" + voice.getId();
-        }
-        if (speechTokensJson == null || speechTokensJson.contains("\"error\"")) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "유효한 음성 토큰이 없습니다.");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> tokens = objectMapper.readValue(speechTokensJson, Map.class);
-            Map<String, Object> body = new HashMap<>();
-            body.put("text", text);
-            body.put("tokens", tokens);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            String synthesizeUrl = cosyvoiceServiceUrl + "/synthesize";
-            System.out.println("[voice/speak] CosyVoice 호출: " + synthesizeUrl + " (토큰 출처: " + tokenSource + ")");
+            String speechTokensJson = voice.getSpeechTokens();
+            if (speechTokensJson == null || speechTokensJson.contains("\"error\"")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "유효한 음성 토큰이 없습니다.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> tokens = objectMapper.readValue(speechTokensJson, Map.class);
+                Map<String, Object> body = new HashMap<>();
+                body.put("text", text);
+                body.put("tokens", tokens);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+                String synthesizeUrl = cosyvoiceServiceUrl + "/synthesize";
             ResponseEntity<byte[]> response = restTemplate.postForEntity(
                     synthesizeUrl,
                     requestEntity,
@@ -317,6 +353,7 @@ public class VoiceController {
             error.put("success", false);
             error.put("message", "TTS 합성 실패: " + cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            }
         }
     }
 }

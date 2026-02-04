@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # ruamel.yaml 버전 호환성 문제 해결 (HyperPyYAML과 호환되는 버전)
 RUN pip install --no-cache-dir "ruamel.yaml<0.18"
 
+# Edge TTS (기본 음성용: 한국어 SunHi/InJoon)
+RUN pip install --no-cache-dir edge-tts
+
 # CosyVoice 디렉토리 복사
 COPY CosyVoice /app/CosyVoice
 
