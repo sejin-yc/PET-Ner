@@ -44,7 +44,6 @@ export const AuthProvider = ({ children }) => {
   // 3. 회원가입 (추가됨)
   const register = async (userData) => {
     try {
-      // ✅ 순수 axios 사용! 토큰 없이 요청 보냄
       await axios.post(`/api/user/register`, userData);
       
       toast.success("회원가입 성공! 로그인해주세요.");
@@ -67,7 +66,7 @@ export const AuthProvider = ({ children }) => {
   // 프로필 수정 등은 기존 api 객체 사용 (토큰 필요하니까)
   const updateProfile = async (newName) => {
     try {
-      await api.put(`/users/${user.id}/profile`, { name: newName });
+      await api.put(`/user/${user.id}/profile`, { name: newName });
       const updatedUser = { ...user, name: newName };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -81,8 +80,8 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (currentPassword, newPassword) => {
     try {
-      await api.post('/users/verify-password', { userId: user.id, password: currentPassword });
-      await api.put(`/users/${user.id}/password`, { newPassword });
+      await api.post('/user/verify-password', { userId: user.id, password: currentPassword });
+      await api.put(`/user/${user.id}/password`, { newPassword });
       toast.success("비밀번호 변경 완료. 다시 로그인해주세요.");
       logout();
       return true;

@@ -37,9 +37,15 @@ public class User {
     private String password;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @Builder.Default // 빌더 패턴 사용 시 기본값 적용
+    @Builder.Default
     private List<String> roles = new ArrayList<>();
 
     @Builder.Default
     private boolean isVoiceTrained = false;
+
+    @Column(nullable = true)
+    private Integer age;
+
+    @Column(nullable = true, length = 10)
+    private String gender;
 }

@@ -3,6 +3,7 @@ package com.ssafy.robot_server.controller;
 import com.ssafy.robot_server.domain.User;
 import com.ssafy.robot_server.repository.UserRepository;
 import com.ssafy.robot_server.security.JwtTokenProvider;
+import com.ssafy.robot_server.service.VoiceJetsonSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
@@ -24,6 +25,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
+    private final VoiceJetsonSyncService voiceJetsonSyncService;
 
     @Data
     public static class LoginRequest{
@@ -34,6 +36,8 @@ public class UserController {
     @Data
     public static class UpdateProfileRequest{
         private String name;
+        private Integer age;
+        private String gender; // "M", "F", null
     }
 
     @Data
@@ -75,6 +79,9 @@ public class UserController {
 
         String token = jwtTokenProvider.createToken(user.getEmail());
 
+        // 로그인한 유저에게 음성 토큰이 있으면 Jetson으로 미리 전송 (JETSON_VOICE_URL 설정 시만)
+        voiceJetsonSyncService.syncTokenToJetson(user.getId());
+
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
         response.put("user", user);
@@ -82,14 +89,22 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // 3. 프로필 이름 수정
+    // 3. 프로필 수정 (이름, 나이, 성별)
     @PutMapping("/{id}/profile")
     @Operation(summary = "프로필 수정")
     public ResponseEntity<?> updateProfile(@PathVariable Long id, @RequestBody UpdateProfileRequest request) {
         User user = userRepository.findById(id).orElse(null);
         if (user == null) return ResponseEntity.badRequest().body("유저를 찾을 수 없습니다.");
 
-        user.setName(request.getName());
+        if (request.getName() != null) {
+            user.setName(request.getName());
+        }
+        if (request.getAge() != null) {
+            user.setAge(request.getAge());
+        }
+        if (request.getGender() != null) {
+            user.setGender(request.getGender());
+        }
         userRepository.save(user);
         return ResponseEntity.ok(user);
     }

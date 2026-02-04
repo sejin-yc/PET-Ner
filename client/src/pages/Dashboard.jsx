@@ -1,19 +1,139 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRobot } from '../contexts/RobotContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Battery, Zap, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
+import api from '../api/axios';
+import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import StreamPanel from '../components/StreamPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import Map2D from '../components/Map2D';
 import ControlPanel from '../components/ControlPanel';
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const { 
-    robotStatus, toggleMode,
+    robotStatus, toggleMode, moveRobot,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
-    trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice
+    trainVoice, stopVoiceTraining, isVoiceTraining, voiceTrainingText,
+    isVoiceCloned, useClonedVoice, setUseClonedVoice,
+    isRobotLoading
   } = useRobot();
 
   const [ttsText, setTtsText] = useState("");
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsStatus, setTtsStatus] = useState(null);
+  const [ttsStatusMessage, setTtsStatusMessage] = useState("");
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+  const playTtsWithVoice = async (text) => {
+    if (!user?.id || !text.trim()) return;
+    setTtsLoading(true);
+    setTtsStatus('generating');
+    setTtsStatusMessage('음성 생성 중...');
+    try {
+      const userId = Number(user.id);
+      const useDefaultVoice = !useClonedVoice;
+      const textTrimmed = text.trim();
+      const body = { userId, text: textTrimmed, useDefaultVoice };
+      const res = await api.post('/user/voice/tts/speak', body, {
+        responseType: 'arraybuffer',
+        validateStatus: () => true,
+      });
+      if (res.status !== 200) {
+        const d = res.data;
+        let msg = res.status === 404
+          ? '404: 경로 없음(백엔드 재빌드·재시작 필요) 또는 해당 사용자 목소리 없음'
+          : '음성 생성 실패';
+        if (d != null && (d instanceof ArrayBuffer) && d.byteLength > 0) {
+          try {
+            const parsed = JSON.parse(new TextDecoder().decode(d));
+            msg = parsed.message || parsed.detail || msg;
+          } catch (_) {}
+        }
+        setTtsStatus('gen_error');
+        setTtsStatusMessage(`음성 생성 실패: ${msg} (HTTP ${res.status})`);
+        return;
+      }
+      const data = res.data;
+      const byteLength = data?.byteLength ?? 0;
+      if (!byteLength) {
+        setTtsStatus('gen_error');
+        setTtsStatusMessage('음성 생성 실패: 서버에서 빈 데이터를 반환했습니다.');
+        return;
+      }
+      setTtsStatus('generated');
+      setTtsStatusMessage(`음성 생성 완료 (${(byteLength / 1024).toFixed(1)} KB), 재생 중...`);
+
+      const blob = new Blob([data], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        setTtsStatus(null);
+        setTtsStatusMessage('');
+      };
+      audio.onerror = (e) => {
+        setTtsStatus('play_error');
+        setTtsStatusMessage('재생 실패 (스피커/볼륨 확인 또는 브라우저 음성 허용 확인)');
+        URL.revokeObjectURL(url);
+      };
+      await audio.play();
+      setTtsStatus('playing');
+    } catch (err) {
+      console.error('TTS 요청/재생 실패:', err);
+      console.error('response:', err.response?.status, err.response?.data);
+      setTtsStatus('gen_error');
+      const status = err.response?.status;
+      let msg = err.code === 'ERR_NETWORK' ? '서버 연결 실패' : '음성 생성 실패';
+      if (err.response?.data != null) {
+        const d = err.response.data;
+        if (typeof d === 'string') {
+          try {
+            const parsed = JSON.parse(d);
+            msg = parsed.message || parsed.detail || msg;
+          } catch {
+            msg = d.slice(0, 80);
+          }
+        } else if (d instanceof ArrayBuffer && d.byteLength) {
+          try {
+            const raw = new TextDecoder().decode(d);
+            const parsed = JSON.parse(raw);
+            msg = parsed.message || parsed.detail || msg;
+          } catch {
+            msg = '서버 오류 (HTTP ' + (status ?? '') + ')';
+          }
+        } else if (typeof d?.message === 'string') {
+          msg = d.message;
+        } else if (typeof d?.detail === 'string') {
+          msg = d.detail;
+        }
+        if (status != null) msg = msg + ' (HTTP ' + status + ')';
+        setTtsStatusMessage(`음성 생성 실패: ${msg}`);
+      } else {
+        setTtsStatusMessage(`요청 실패: ${msg}`);
+      }
+    } finally {
+      setTtsLoading(false);
+    }
+  };
+
+  /** TTS 재생: 토글이 "내 목소리"면 학습 목소리(CosyVoice), "기본 목소리"면 Edge TTS */
+  const handleTTS = async () => {
+    if (!ttsText.trim()) return;
+    const text = ttsText;
+    setTtsText('');
+    await playTtsWithVoice(text);
+  };
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSkeleton(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isRobotLoading || showSkeleton) {
+    return <DashboardSkeleton />;
+  }
+
   const handleMove = (linear, angular) => moveRobot(linear, angular);
   const isAuto = robotStatus.mode === 'auto';
   
@@ -97,18 +217,66 @@ const Dashboard = () => {
           <h3 className="font-semibold text-gray-800 flex items-center gap-2"><Volume2 size={18} /> 음성 제어 센터</h3>
           <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-bold text-indigo-900 flex items-center gap-1.5"><BrainCircuit size={16}/> 내 목소리 학습</span>
-              {isVoiceCloned ? <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-bold">학습 완료</span> : <button onClick={trainVoice} className="text-xs bg-white border border-indigo-200 px-2 py-1 rounded text-indigo-700 hover:bg-indigo-100">학습 시작</button>}
+              <span className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                <BrainCircuit size={16}/> 내 목소리 학습
+                {isVoiceCloned && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-bold align-middle">학습 완료</span>}
+              </span>
+              <button 
+                onClick={trainVoice} 
+                disabled={isVoiceTraining}
+                className="text-xs bg-white border border-indigo-200 px-2 py-1 rounded text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {isVoiceTraining ? "녹음 중..." : isVoiceCloned ? "재학습" : "학습 시작"}
+              </button>
             </div>
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => isVoiceCloned && setUseClonedVoice(!useClonedVoice)}>
+            {isVoiceTraining && (
+              <div className="mt-3 p-3 bg-white rounded-lg border border-indigo-200">
+                <p className="text-sm font-medium text-indigo-900 mb-2">다음 문구를 읽어주세요:</p>
+                <p className="text-base text-gray-800 mb-3 font-semibold">"{voiceTrainingText}"</p>
+                <div className="flex items-center gap-2 text-red-600">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium">녹음 중...</span>
+                </div>
+                <button 
+                  onClick={stopVoiceTraining}
+                  className="mt-2 w-full text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded hover:bg-red-200"
+                >
+                  녹음 중지
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setUseClonedVoice(!useClonedVoice)}>
               <div className={`w-10 h-5 rounded-full relative transition-colors ${useClonedVoice ? 'bg-indigo-600' : 'bg-gray-300'}`}><div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${useClonedVoice ? 'left-6' : 'left-1'}`} /></div>
-              <span className={`text-xs ${useClonedVoice ? 'text-indigo-700 font-medium' : 'text-gray-400'}`}>{useClonedVoice ? '내 목소리로 출력' : '기본 기계음 사용'}</span>
+              <span className={`text-xs ${useClonedVoice ? 'text-indigo-700 font-medium' : 'text-gray-400'}`}>{useClonedVoice ? '내 목소리 사용하기' : '기본 목소리 사용하기'}</span>
             </div>
           </div>
           <div className="flex gap-2">
-            <input type="text" value={ttsText} onChange={(e) => setTtsText(e.target.value)} placeholder="로봇에게 말하기..." className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-            <button onClick={() => { sendTTS(ttsText); setTtsText(''); }} disabled={!ttsText.trim()} className="bg-gray-900 text-white px-3 rounded-lg hover:bg-black disabled:opacity-50"><Play size={16} fill="white" /></button>
+            <input 
+              type="text" 
+              value={ttsText} 
+              onChange={(e) => setTtsText(e.target.value)} 
+              placeholder="로봇에게 말하기..." 
+              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" 
+              onKeyPress={(e) => e.key === 'Enter' && handleTTS()}
+            />
+            <button 
+              onClick={handleTTS} 
+              disabled={!ttsText.trim() || ttsLoading} 
+              className="bg-gray-900 text-white px-3 rounded-lg hover:bg-black disabled:opacity-50 flex items-center gap-1"
+            >
+              {ttsLoading ? '...' : <Play size={16} fill="white" />}
+            </button>
           </div>
+          {/* 음성 상태: 생성 성공/실패 vs 재생 성공/실패 구분 (로컬 재생 확인용) */}
+          {ttsStatusMessage && (
+            <p className={`text-xs mt-1 px-2 py-1 rounded ${
+              ttsStatus === 'gen_error' || ttsStatus === 'play_error'
+                ? 'bg-red-100 text-red-700'
+                : 'bg-green-100 text-green-700'
+            }`}>
+              {ttsStatusMessage}
+            </p>
+          )}
           <button onMouseDown={startWalkieTalkie} onMouseUp={stopWalkieTalkie} onMouseLeave={stopWalkieTalkie} className={`w-full border-2 rounded-xl py-4 flex flex-col items-center justify-center gap-2 transition-all select-none ${isRecording ? 'border-red-500 bg-red-50 text-red-600 animate-pulse' : 'border-dashed border-gray-300 text-gray-500 hover:border-indigo-500 hover:text-indigo-600 hover:bg-indigo-50'}`}>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isRecording ? 'bg-red-200' : 'bg-gray-100 group-hover:bg-white'}`}><Mic size={24} className={isRecording ? 'animate-bounce' : ''} /></div>
             <span className="text-xs font-medium">{isRecording ? "녹음 중... (떼면 전송)" : "누르고 말하기 (무전기 모드)"}</span>

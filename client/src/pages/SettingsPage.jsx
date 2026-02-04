@@ -15,6 +15,8 @@ const SettingsPage = () => {
 
   // 상태 2: 설정 폼 데이터
   const [name, setName] = useState(user?.name || '');
+  const [age, setAge] = useState(user?.age || '');
+  const [gender, setGender] = useState(user?.gender || '');
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [profileImage, setProfileImage] = useState(null);
 
@@ -23,7 +25,7 @@ const SettingsPage = () => {
     e.preventDefault();
     try {
       // 백엔드에 비밀번호 확인 요청
-      await api.post('/users/verify-password', { 
+      await api.post('/user/verify-password', { 
         userId: user.id, 
         password: passwordInput 
       });
@@ -48,10 +50,19 @@ const SettingsPage = () => {
     }
   };
 
-  // 💾 3. 프로필 저장 (이름 변경)
+  // 💾 3. 프로필 저장 (이름, 나이, 성별)
   const handleSaveProfile = async () => {
     if (!name.trim()) return toast.error("이름을 입력해주세요.");
-    await updateProfile(name);
+    try {
+      await api.put(`/user/${user.id}/profile`, { 
+        name, 
+        age: age ? parseInt(age) : null, 
+        gender: gender || null 
+      });
+      toast.success("프로필이 저장되었습니다.");
+    } catch (error) {
+      toast.error("프로필 저장 실패: " + (error.response?.data || error.message));
+    }
   };
 
   // 🔑 4. 비밀번호 변경
@@ -68,7 +79,7 @@ const SettingsPage = () => {
     if (!confirm("정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
 
     try {
-      await api.delete(`/users/${user.id}`); // 백엔드 탈퇴 API 호출
+      await api.delete(`/user/${user.id}`); // 백엔드 탈퇴 API 호출
       toast.success("회원 탈퇴가 완료되었습니다.");
       logout(); // 로그아웃 처리
       navigate('/login'); // 로그인 페이지로 이동
@@ -147,18 +158,40 @@ const SettingsPage = () => {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">이름 (닉네임)</label>
-              <div className="flex gap-2 mt-1">
+              <input 
+                type="text" 
+                value={name} 
+                onChange={(e) => setName(e.target.value)}
+                className="w-full mt-1 p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">나이</label>
                 <input 
-                  type="text" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                  type="number" 
+                  value={age} 
+                  onChange={(e) => setAge(e.target.value)}
+                  placeholder="예: 25"
+                  className="w-full mt-1 p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
                 />
-                <button onClick={handleSaveProfile} className="bg-indigo-600 text-white px-4 rounded hover:bg-indigo-700 whitespace-nowrap">
-                  저장
-                </button>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">성별</label>
+                <select 
+                  value={gender} 
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full mt-1 p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="">선택 안 함</option>
+                  <option value="M">남성</option>
+                  <option value="F">여성</option>
+                </select>
               </div>
             </div>
+            <button onClick={handleSaveProfile} className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 font-medium">
+              프로필 저장
+            </button>
           </div>
         </div>
       </section>

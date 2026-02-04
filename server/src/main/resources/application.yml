@@ -33,9 +33,19 @@ jwt:
 mqtt:
   broker-url: tcp://mosquitto:1883
   client-id: spring-boot-server-docker
-  default-topic: "/#" # 필요한 토픽 범위로 한정하는 것이 효율적
+  default-topic: "/#"
   username: ssafy
   password: ssafy1
+
+# CosyVoice 서비스 (TTS)
+cosyvoice:
+  service:
+    url: ${COSYVOICE_SERVICE_URL:http://cosyvoice_service:50001}
+
+# Jetson 음성 토큰 전송 (선택)
+jetson:
+  voice:
+    url: ${JETSON_VOICE_URL:}
 
 logging:
   level:

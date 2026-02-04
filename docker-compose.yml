@@ -47,6 +47,8 @@ services:
         condition: service_healthy
       mosquitto:
         condition: service_started
+      cosyvoice_service:
+        condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/robot_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -56,8 +58,45 @@ services:
       MQTT_BROKER_URL: tcp://mosquitto:1883
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
+      COSYVOICE_SERVICE_URL: http://cosyvoice_service:50001
+    volumes:
+      - ./uploads:/app/uploads
     networks:
       - robot_network
+
+  # 6. CosyVoice Service: 음성 토큰 추출 + TTS 합성 서비스 (GPU 사용)
+  cosyvoice_service:
+    build: 
+      context: ..
+      dockerfile: S14P11C203/cosyvoice_service/Dockerfile
+    container_name: cosyvoice_service
+    ports:
+      - "50001:50001"
+    volumes:
+      - ./uploads:/app/uploads
+      - ../CosyVoice:/app/CosyVoice
+      - ./cosyvoice_models:/root/.cache/modelscope  # 모델 캐시 저장 (재사용)
+      - ./cosyvoice_service/extract_tokens_api.py:/app/extract_tokens_api.py  # 개발용: 코드 수정 시 재빌드 불필요
+    environment:
+      PORT: 50001
+      # 볼륨 마운트 경로의 절대 경로 사용 → ModelScope 다운로드 시도 안 함 (로컬 모델 로드)
+      COSYVOICE_MODEL_DIR: /root/.cache/modelscope/hub/FunAudioLLM/Fun-CosyVoice3-0___5B-2512
+      # GPU FP16 모드 (메모리 절약, 속도 향상)
+      USE_FP16: "true"
+      # 스트리밍 추론 (피크 메모리 감소, OOM 방지)
+      USE_STREAM_INFERENCE: "true"
+      # 합성 후 CUDA 캐시 정리
+      FREE_CUDA_CACHE_AFTER_SYNTH: "true"
+    networks:
+      - robot_network
+    # GPU 할당 (NVIDIA Container Toolkit 필요)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   
   # 4. Frontend: React Client
   robot_client:
