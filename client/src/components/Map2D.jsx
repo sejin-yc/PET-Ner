@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from 'styled-components';
 
 const MAP_CONFIG = {
-    imageUrl: "https://i14c203.p.ssafy.io/uploads/cat_bot_map_final.png",
+    imageUrl: "/cat_bot_map_final.png",
     resolution: 0.05,   // 1픽셀당 0.05m (5cm)
     originX: -1.51,     // 맵의 원점 X (meters)
     originY: -0.84,     // 맵의 원점 Y (meters)
@@ -38,7 +38,13 @@ const Map2D = ({robotX = 0, robotY = 0, robotTheta = 0}) => {
         const img = new Image();
         img.src = MAP_CONFIG.imageUrl;
         img.crossOrigin = "Anonymous";
-        img.onload = () => setImage(img);
+        img.onload = () => {
+            console.log("✅ 지도 이미지 로딩 성공:", img.width, "x", img.height);
+            setImage(img);
+        };
+        img.onerror = () => {
+            console.error("❌ 지도 이미지를 찾을 수 없습니다! public 폴더에 파일이 있는지 확인하세요:", MAP_CONFIG.imageUrl);
+        };
     }, []);
 
     useEffect(() => {

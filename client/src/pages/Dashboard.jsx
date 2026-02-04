@@ -8,7 +8,7 @@ import ControlPanel from '../components/ControlPanel';
 
 const Dashboard = () => {
   const { 
-    robotStatus, toggleMode,
+    robotStatus, toggleMode, moveRobot,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
     trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice
   } = useRobot();
@@ -89,7 +89,7 @@ const Dashboard = () => {
 
         {/* 2. 제어 컨트롤러 */}
         <div className={`transition-opacity duration-300 ${isAuto ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-          <ControlPanel />
+          <ControlPanel onMove={handleMove} />
         </div>
 
         {/* 3. 음성 제어 센터 */}
