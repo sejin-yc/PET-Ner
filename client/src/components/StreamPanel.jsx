@@ -71,7 +71,7 @@ const StreamPanel = () => {
         }
 
         if (msg.startsWith("MESSAGE")) {
-          const bodyIndex = msg.indexof("\n\n");
+          const bodyIndex = msg.indexOf("\n\n");
           if (bodyIndex === -1) return;
 
           const body = msg.substring(bodyIndex + 2).replace(/\0/g, "");
