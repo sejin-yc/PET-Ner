@@ -19,13 +19,24 @@ const StreamPanel = () => {
   const pcRef = useRef(null);
   const wsRef = useRef(null);
 
+  const mountedRef = useRef(true);
+
   useEffect(() => {
     setIsRecording(!!robotStatus?.isRecording);
   }, [robotStatus]);
 
   useEffect(() => {
+    mountedRef.current = true;
+
+    const wasStreaming = sessionStorage.getItem('isStreamingState');
+    if(wasStreaming === 'true') {
+      console.log("🔄 새로고침 감지: 영상 자동 재연결 시도");
+      startStream();
+    }
+
     return () => {
-      stopStream();
+      mountedRef.current = false;
+      stopStream(false);
     };
   }, []);
 
@@ -35,6 +46,8 @@ const StreamPanel = () => {
 
     setIsConnecting(true);
     setErrorMsg(null);
+
+    sessionStorage.setItem('isStreamingState', 'true');
 
     try {
       // 1-1. RTCPeerConnection 생성
@@ -46,10 +59,12 @@ const StreamPanel = () => {
       // 1-2. 트랙 수신 이벤트 핸들러
       pc.ontrack = (event) => {
         console.log("🎥 비디오 트랙 수신됨!");
-        if (videoRef.current) {
+        if (videoRef.current){
           videoRef.current.srcObject = event.streams[0];
-          setIsStreaming(true);
-          setIsConnecting(false);
+          if (mountedRef.current) {
+            setIsStreaming(true);
+            setIsConnecting(false);
+          }
         }
       };
 
@@ -63,6 +78,8 @@ const StreamPanel = () => {
       };
 
       ws.onmessage = async (event) => {
+        if (!mountedRef.current) return;
+
         const msg = event.data;
 
         if (msg.startsWith("CONNECTED")) {
@@ -114,19 +131,25 @@ const StreamPanel = () => {
 
       ws.onerror = (err) => {
         console.error("웹소켓 에러:", err);
-        setErrorMsg("서버 연결 실패");
-        setIsConnecting(false);
+        if (mountedRef.current){
+          setErrorMsg("서버 연결 실패");
+          setIsConnecting(false);
+        }
       };
 
       ws.onclose = () => {
         console.log("웹소켓 연결 종료");
-        setIsConnecting(false);
-        setIsStreaming(false);
+        if (mountedRef.current){
+          setIsConnecting(false);
+          setIsStreaming(false);
+        }
       }
     } catch (err) {
       console.error("스트림 시작 중 에러:", err);
-      setErrorMsg("스트림 초기화 실패");
-      setIsConnecting(false);
+      if (mountedRef.current){
+        setErrorMsg("스트림 초기화 실패");
+        setIsConnecting(false);
+      }
     }
   };
 
@@ -136,7 +159,7 @@ const StreamPanel = () => {
     console.log("📡 Offer 구독 시작... 로봇 신호 대기 중");
   };
 
-  const stopStream = () => {
+  const stopStream = (isManualStop = true) => {
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
@@ -151,13 +174,19 @@ const StreamPanel = () => {
       videoRef.current.srcObject = null;
     }
 
-    setIsStreaming(false);
-    setIsConnecting(false);
+    if (mountedRef.current){
+      setIsStreaming(false);
+      setIsConnecting(false);
+    }
+
+    if (isManualStop) {
+      sessionStorage.removeItem('isStreamingState');
+    }
   };
 
   const toggleStream = () => {
     if (isStreaming) {
-      stopStream();
+      stopStream(true);
     } else {
       startStream();
     }

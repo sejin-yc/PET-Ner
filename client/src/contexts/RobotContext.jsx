@@ -29,7 +29,10 @@ export const RobotProvider = ({ children }) => {
     temperature: 0.0, lastUpdate: new Date().toISOString(),
   });
 
-  const[isVoiceCloned, setIsVoiceCloned] = useState(false);
+  const[isVoiceCloned, setIsVoiceCloned] = useState(() => {
+    return localStorage.getItem('isVoiceCloned') === 'true';
+  });
+
   const[useClonedVoice, setUseClonedVoice] = useState(false);
   const[isRecording, setIsRecording] = useState(false);
 
@@ -38,13 +41,19 @@ export const RobotProvider = ({ children }) => {
   const[isVideoOn, setIsVideoOn] = useState(true);
 
   useEffect(() => {
+    localStorage.setItem('isVoiceCloned', isVoiceCloned);
+  }, [isVoiceCloned]);
+
+  useEffect(() => {
     if (!user?.id) return;
 
     const fetchInitialState = async () => {
       try {
         const res = await api.get(`/robot/state?userId=${user.id}`);
         if (res.data) {
-          setIsVoiceCloned(res.data.isVoiceTrained);
+          if (res.data.isVoiceTrained !== undefined){
+            setIsVoiceCloned(res.data.isVoiceTrained);
+          }
           setRobotStatus(prev => ({
             ...prev,
             mode: res.data.currentMode || 'manual',
@@ -221,16 +230,18 @@ export const RobotProvider = ({ children }) => {
 
   const addTestVideo = async () => {
     try {
+      const dummyId = Date.now();
       const dummyData = {
         userId: user?.id || 1,
         rentId: 999,
         vehicleId: 101,
-        fileName: `test_${Date.now()}.jpg`,
+        fileName: `test_${dummyId}.jpg`,
         url: "/uploads/test.jpg",
         thumbnailUrl: "/uploads/test.jpg",
         duration: "00:15",
         behavior: "테스트 감지",
-        catName: "테스트 냥이"
+        catName: "테스트 냥이",
+        isLocal: true
       };
 
       setVideos((prev) => [dummyData, ...prev]);
@@ -240,12 +251,19 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const deleteVideo = async (id) => {
+  const deleteVideo = async (id, isLocal = false) => {
     try {
+      if (isLocal || (typeof id === 'number' && id > 1700000000000)) {
+        setVideos((prev) => prev.filter(v => v.id !== id));
+        toast.success("삭제되었습니다.");
+        return;
+      }
+
       await api.delete(`/videos/${id}`);
       setVideos((prev) => prev.filter(v => v.id !== id));
-      toast.success("삭제되었습니다.");
+      toast.success("삭제되었습니다.")
     } catch (error) {
+      console.error("영상 삭제 에러:", error)
       toast.error("삭제 실패");
     }
   };

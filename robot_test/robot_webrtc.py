@@ -29,6 +29,7 @@ from av import VideoFrame
 
 # ✅ 설정
 SERVER_URL = "https://i14c203.p.ssafy.io/ws"
+WS_URL = "wss://i14c203.p.ssafy.io/ws"
 IMAGE_TOPIC = "/front_cam/compressed"
 ROBOT_ID = "1"
 
@@ -64,8 +65,7 @@ class ImageSubscriber(Node):
             if frame is not None:
                 self.latest_frame = frame
                 self.frame_count += 1
-                if self.frame_count % 30 == 0:
-                    print(f"Frame Received: {frame.shape}")
+                if self.frame_count % 100 == 0: pass
         except Exception as e:
             self.get_logger().error(f"Image Decode Error: {e}")
 
@@ -82,9 +82,7 @@ class RosStreamTrack(VideoStreamTrack):
             # 카메라 오류 시 대기 화면
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(frame, "Waiting for ROS Topic", (50, 240), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(frame, "QoS: Best Effort", (50, 300),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         new_frame = VideoFrame.from_ndarray(frame, format="bgr24")
         new_frame.pts = pts
@@ -94,60 +92,90 @@ class RosStreamTrack(VideoStreamTrack):
 async def run_robot(ros_node):
     while True:
         pc = None
+        ws = None
+        session = None
+
         try:
-            ws_url = "wss://i14c203.p.ssafy.io/ws"
             print("🔄 [Robot] 서버 연결 시도 중...")
+
+            session = aiohttp.ClientSession()
+            ws = await session.ws_connect(WS_URL, heartbeat=30.0)
+
+            print(f"✅ [Robot] 소켓 연결 성공!")
+
+            await ws.send_str("CONNECT\naccept-version:1.1,1.0\n\n\x00")
+            await ws.send_str("SUBSCRIBE\nid:sub-0\ndestination:/sub/peer/answer\n\n\x00")
 
             pc = RTCPeerConnection()
             pc.addTrack(RosStreamTrack(ros_node))
 
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(ws_url, heartbeat=30.0) as ws:
-                    print(f"✅ [Robot] 서버 연결 성공!")
+            @pc.on("connectionstatechange")
+            async def on_connectionstatechange():
+                print(f"📡 WebRTC 상태 변경: {pc.connectionState}")
 
-                    # 1. STOMP 연결 프레임 (필수)
-                    connect_frame = "CONNECT\naccept-version:1.1,1.0\n\n\x00"
-                    await ws.send_str(connect_frame)
+                if pc.connectionState in ["failed", "closed"]:
+                    print("⚠️ 연결 끊김 감지! 리셋 준비...")
+                    await pc.close()
+            
+            last_offer_time = 0
 
-                    # 2. Offer 생성 및 전송
-                    offer = await pc.createOffer()
-                    await pc.setLocalDescription(offer)
-                    
-                    payload = json.dumps({
-                        "sdp": pc.localDescription.sdp,
-                        "type": pc.localDescription.type,
-                        "robotId": ROBOT_ID
-                    })
-                    send_frame = f"SEND\ndestination:/pub/peer/offer\ncontent-type:application/json\n\n{payload}\x00"
-                    await ws.send_str(send_frame)
-                    print("📤 [Robot] Offer 전송 완료")
+            while not ws.closed:
+                if pc.connectionState == "closed":
+                    break
 
-                    # 3. Answer 구독
-                    sub_frame = "SUBSCRIBE\nid:sub-0\ndestination:/sub/peer/answer\n\n\x00"
-                    await ws.send_str(sub_frame)
+                current_time = time.time()
+                if pc.connectionState != "connected" and (current_time - last_offer_time > 2.0):
+                    try:
+                        offer = await pc.createOffer()
+                        await pc.setLocalDescription(offer)
 
-                    # 4. 메시지 수신 대기
-                    async for msg in ws:
-                        if msg.type == aiohttp.WSMsgType.TEXT:
-                            if "MESSAGE" in msg.data and "destination:/sub/peer/answer" in msg.data:
-                                try:
-                                    body = msg.data.split("\n\n")[-1].replace("\x00", "")
-                                    answer = json.loads(body)
-                                    desc = RTCSessionDescription(sdp=answer["sdp"], type=answer["type"])
-                                    await pc.setRemoteDescription(desc)
-                                    print("🎥 [Robot] P2P 연결 성공!")
-                                except Exception as e:
-                                    print(f"❌ WebRTC 핸드쉐이크 에러: {e}")
-                        
-                        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                            break
+                        payload = json.dumps({
+                            "sdp": pc.localDescription.sdp,
+                            "type": pc.localDescription.type,
+                            "robotId": ROBOT_ID
+                        })
+
+                        frame = f"SEND\ndestination:/pub/peer/offer\ncontent-type:application/json\n\n{payload}\x00"
+                        await ws.send_str(frame)
+                        print("📤 [Robot] Offer 전송 (연결 대기 중...)")
+                        last_offer_time = current_time
+                    except Exception as e:
+                        print(f"Offer 생성 실패 (재시도 예정): {e}")
+                
+                try:
+                    msg = await asyncio.wait_for(ws.receive(), timeout=1.0)
+
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        if "MESSAGE" in msg.data and "destination:/sub/peer/answer" in msg.data:
+                            body = msg.data.split("\n\n")[-1].replace("\x00", "")
+
+                            if body:
+                                answer = json.loads(body)
+                                print("📩 [Robot] Answer 수신!")
+
+                                if pc.signalingState == "stable":
+                                    print("⚠️ 이미 연결됨. 재협상(Reset) 필요.")
+                                    break
+
+                                desc = RTCSessionDescription(sdp=answer["sdp"], type=answer["type"])
+                                await pc.setRemoteDescription(desc)
+                                print("🎥 [Robot] P2P 연결 성공! 스트리밍 시작")
+                    elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                        print("❌ 소켓 끊김")
+                        break
+                except asyncio.TimeoutError:
+                    pass
+                except Exception as e:
+                    print(f"❌ 메시지 처리 에러: {e}")
+                    break
         except Exception as e:
-            print(f"❌ 로봇 실행 중 오류 발생: {e}")
+            print(f"❌ 실행 중 오류: {e}")
         finally:
-            # 리소스 정리 후 재시도
+            print("♻️ 리소스 정리 및 재시작...")
             if pc: await pc.close()
-            print("⏳ 3초 후 재접속합니다...")
-            await asyncio.sleep(3)
+            if ws: await ws.close()
+            if session: await session.close()
+            await asyncio.sleep(2)
 
 def ros_spin_thread(node):
     rclpy.spin(node)
