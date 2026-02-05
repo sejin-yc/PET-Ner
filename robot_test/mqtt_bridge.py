@@ -8,9 +8,10 @@ import paho.mqtt.client as mqtt
 import math
 import time
 import subprocess
+import ssl
 
 MQTT_BROKER_IP = "i14c203.p.ssafy.io"
-MQTT_PORT = 1883
+MQTT_PORT = 443
 
 ROBOT_ID = "1"
 
@@ -38,7 +39,9 @@ class MqttBridge(Node):
 
         # --- [3] MQTT 설정 ---
         self.current_mode = "manual"
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
+        self.client.ws_set_options(path="/mqtt")
+        self.client.tls_set_context(context=ssl.create_default_context())
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
@@ -120,12 +123,8 @@ class MqttBridge(Node):
         self.cmd_vel_pub.publish(twist)
     
     def listener_callback(self, msg):
-        if "amcl" in POS_TOPIC:
-            position = msg.pose.pose.position
-            orientation = msg.pose.pose.orientation
-        else:
-            position = msg.pose.pose.position
-            orientation = msg.pose.pose.orientation
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
         
         _, _, yaw = self.euler_from_quaternion(orientation)
 
