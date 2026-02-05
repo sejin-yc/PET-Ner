@@ -108,43 +108,4 @@ public class RobotController {
             log.error("❌ JSON 변환 오류 (Control)", e);
         }
     }
-
-    // 2. WebRTC Answer 전달 (웹 -> 로봇)
-    @MessageMapping("/peer/answer")
-    public void handleAnswer(@Payload Map<String, Object> answerData) {
-        sendSignalToRobot(answerData, "WebRTC Answer");
-    }
-
-    // 3. WebRTC ICE Candidate 전달 (웹 -> 로봇)
-    @MessageMapping("/peer/ice")
-    public void handleIceCandidate(@Payload Map<String, Object> candidate) {
-        sendSignalToRobot(candidate, "WebRTC ICE Candidate");
-    }
-
-    private void sendSignalToRobot(Map<String, Object> data, String logType) {
-        Long userId = extractUserId(data);
-        if (userId == null) return;
-
-        try {
-            String json = objectMapper.writeValueAsString(data);
-            String targetTopic = "robot/" + userId + "/signal";
-            mqttService.sendCommand(targetTopic, json);
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private Long extractUserId(Map<String, Object> map) {
-        if (!map.containsKey("userId")) {
-            log.error("❌ WebRTC 에러: userId 누락됨");
-            return null;
-        }
-
-        try {
-            return Long.valueOf(String.valueOf(map.get("userId")));
-        } catch (NumberFormatException e) {
-            log.error("❌ ID 변환 에러: {}", map.get("userId"));
-            return null;
-        }
-    }
 }
