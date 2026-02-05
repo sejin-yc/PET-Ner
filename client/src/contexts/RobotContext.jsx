@@ -40,9 +40,39 @@ export const RobotProvider = ({ children }) => {
   const[videos, setVideos] = useState([]);
   const[isVideoOn, setIsVideoOn] = useState(true);
 
+  const getLocalVideos = () => {
+    try {
+      const saved = localStorage.getItem('localTestVideos');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('isVoiceCloned', isVoiceCloned);
   }, [isVoiceCloned]);
+
+  const fetchVideos = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      let serverVideos = [];
+
+      try {
+        const res = await api.get(`/videos?userId=${user.id}`);
+        serverVideos = res.data || [];
+      } catch (e) {
+        console.log("서버 영상 없음 혹은 에러 (무시 가능)");
+      }
+
+      const localVideos = getLocalVideos();
+      const formattedLocal = localVideos.map(v => ({ ...v, isLocal: true }));
+      setVideos([...formattedLocal, ...serverVideos]);
+    } catch (err) {
+      console.error("영상 목록 로드 실패:", err);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -67,14 +97,12 @@ export const RobotProvider = ({ children }) => {
       }
     };
     fetchInitialState();
-  }, [user]);
+    fetchVideos();
+  }, [user, fetchVideos]);
 
   /* 2. 연결 설정 (STOMP + Signaling) */
   useEffect(() => {
     const userId = user?.id || '1';
-
-    console.log(`🔌 MQTT 연결 시도: ${MQTT_BROKER_URL}`);
-
     const mqttClient = mqtt.connect(MQTT_BROKER_URL, {
       keepalive: 60,
       protocolId: 'MQTT',
@@ -174,6 +202,25 @@ export const RobotProvider = ({ children }) => {
     addNotification({ type: 'robot', title: '모드 변경', message: `로봇이 ${newMode === 'auto' ? '자동' : '수동'} 모드로 전환되었습니다.`, link: '/' });
   };
 
+  const feedRobot = (itemType) => {
+    if (!client?.connected) {
+      toast.error("로봇이 연결되지 않았습니다.");
+      return;
+    }
+
+    const payload = JSON.stringify({
+      userId: user?.id || 1,
+      type: "FEED",
+      item: itemType
+    });
+
+    client.publish(`robot/${user?.id || '1'}/control`, payload);
+
+    const message = itemType === 'churu' ? "츄르를 줍니다! 🍭" : "밥을 줍니다! 🍚";
+    toast.success(message);
+    addNotification({ type: 'info', title: '급여 실행', message: message, link: '/'});
+  };
+
   // ... (TTS, WalkieTalkie 등 기존 기능 유지) ...
   const toggleVideo = () => setIsVideoOn(prev => !prev);
   const sendTTS = async (text) => {
@@ -232,6 +279,7 @@ export const RobotProvider = ({ children }) => {
     try {
       const dummyId = Date.now();
       const dummyData = {
+        id: dummyId,
         userId: user?.id || 1,
         rentId: 999,
         vehicleId: 101,
@@ -241,10 +289,15 @@ export const RobotProvider = ({ children }) => {
         duration: "00:15",
         behavior: "테스트 감지",
         catName: "테스트 냥이",
-        isLocal: true
+        isLocal: true,
+        createAt: new Date().toISOString()
       };
 
       setVideos((prev) => [dummyData, ...prev]);
+
+      const currentLocal = getLocalVideos();
+      localStorage.setItem('localTestVideos', JSON.stringify([dummyData, ...currentLocal]));
+
       toast.success("✅ 테스트 영상이 생성되었습니다!");
     } catch (error) {
       toast.error("영상 생성 실패");
@@ -261,6 +314,10 @@ export const RobotProvider = ({ children }) => {
       const targetVideo = videos.find(v => v.id === id);
       const isLocalVideo = targetVideo?.isLocal || (typeof id === 'number' && id > 1700000000000);
       if (isLocalVideo) {
+        const currentLocal = getLocalVideos();
+        const updatedLocal = currentLocal.filter(v => v.id !== id);
+        localStorage.setItem('localTestVideos', JSON.stringify(updatedLocal));
+
         setVideos((prev) => prev.filter(v => v.id !== id));
         toast.success("삭제되었습니다.");
         return;
@@ -271,9 +328,7 @@ export const RobotProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("영상 삭제 에러:", error)
-      if (error.reponse?.status === 404 || error.response?.status === 400) {
-        setVideos((prev) => prev.filter(v => v.id !== id));
-      }
+      setVideos((prev) => prev.filter(v => v.id !== id));
       toast.error("삭제 실패");
     }
   };
@@ -353,7 +408,7 @@ export const RobotProvider = ({ children }) => {
       isConnected,
       robotStatus, isRobotLoading,
       isVideoOn, toggleVideo,
-      moveRobot, emergencyStop, toggleMode,
+      moveRobot, emergencyStop, toggleMode, feedRobot,
       sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
       trainVoice, isVoiceCloned, useClonedVoice, setUseClonedVoice,
       videos, deleteVideo, addTestVideo,

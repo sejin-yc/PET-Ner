@@ -83,6 +83,11 @@ const StreamPanel = () => {
         const msg = event.data;
 
         if (msg.startsWith("CONNECTED")) {
+          const startFrame = "SEND\ndestination:/pub/robot/stream/start\ncontent-type:application/json\n\n{}\0";
+          ws.send(startFrame);
+
+          console.log("📤 스트리밍 시작 요청 전송 (/pub/robot/stream/start)");
+
           subscribeToOffer(ws);
           return;
         }
