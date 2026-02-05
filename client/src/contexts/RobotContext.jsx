@@ -17,8 +17,6 @@ export const RobotProvider = ({ children }) => {
 
   const [client, setClient] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [remoteStream, setRemoteStream] = useState(null);
-  const peerConnection = useRef(null);
 
   const lastCommandTime = useRef(0);
   const currentSpeed = useRef({ linear: 0.0, angular: 0.0 });
@@ -75,9 +73,7 @@ export const RobotProvider = ({ children }) => {
       reconnectPeriod: 2000,
       connectTimeout: 30 * 1000,
       clean: true,
-      path: '/mqtt',
-      // username: 'ssafy',
-      // password: 'ssafy1234'
+      path: '/mqtt'
     });
 
     mqttClient.on('connect', () => {
@@ -86,17 +82,14 @@ export const RobotProvider = ({ children }) => {
       setRobotStatus(prev => ({ ...prev, isOnline: true }));
 
       const statusTopic = `robot/${userId}/status`;
-      const peerOfferTopic = `peer/${userId}/offer`;
-      const peerIceTopic = `peer/${userId}/ice`;
 
-      mqttClient.subscribe([statusTopic, peerOfferTopic, peerIceTopic], (err) => {
+      mqttClient.subscribe([statusTopic], (err) => {
         if (!err) console.log(`📡 토픽 구독 완료: ${statusTopic}`);
       });
     });
 
     mqttClient.on('message', (topic, message) => {
       const msgString = message.toString();
-      const userId = user?.id || '1';
 
       try{
         if (topic === `robot/${userId}/status`) {
@@ -114,24 +107,13 @@ export const RobotProvider = ({ children }) => {
             position: { x: payload.x ?? prev.position.x, y: payload.y ?? prev.position.y },
             lastUpdate: new Date().toISOString()
           }));
-        } else if (topic === `peer/${userId}/offer`) {
-          console.log("📹 [MQTT] WebRTC Offer 수신!");
-          const offer = JSON.parse(msgString);
-          handleWebRTCOffer(offer, mqttClient);
-        } else if (topic === `peer/${userId}/ice`) {
-          const payload = JSON.parse(msgString);
-          if (peerConnection.current && peerConnection.current.setRemoteDescription) {
-            peerConnection.current.addIceCandidate(new RTCIceCandidate(payload))
-                .catch(e => console.error("ICE 추가 에러", e));
-          }
-        }
+        } 
       } catch (e) {
         console.error("MQTT 메시지 파싱 에러:", e);
       }
     });
 
     mqttClient.on('close', () => {
-      console.log('🔌 MQTT 연결 끊김');
       setIsConnected(false);
       setRobotStatus(prev => ({ ...prev, isOnline: false }));
     });
@@ -140,56 +122,8 @@ export const RobotProvider = ({ children }) => {
 
     return () => {
       if (mqttClient) mqttClient.end();
-      if (peerConnection.current) peerConnection.current.close();
     };
   }, [user]);
-
-  // ✅ WebRTC 핸들러 함수 (Offer 처리)
-    const handleWebRTCOffer = useCallback(async (offer, activeClient) => {
-      try {
-        if (peerConnection.current) peerConnection.current.close();
-
-        // 1. PeerConnection 생성
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-
-        // 2. 트랙(영상) 수신 이벤트 핸들러
-        pc.ontrack = (event) => {
-          console.log("🎥 스트림 수신 시작!");
-          setRemoteStream(event.streams[0]); 
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate && activeClient?.connected) {
-            activeClient.publish(`peer/${user?.id || '1'}/ice`, JSON.stringify({
-              userId: user?.id,
-              candidate: event.candidate.candidate,
-              sdpMid: event.candidate.sdpMid,
-              sdpMLineIndex: event.candidate.sdpMLineIndex
-            }));
-          }
-        };
-
-        peerConnection.current = pc;
-
-        // 4. Answer 전송
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
-        // 5. Answer 전송 (Signaling 서버로)
-        if (activeClient?.connected) {
-          activeClient.publish(`peer/${user?.id || '1'}/answer`, JSON.stringify({
-            userId: user?.id,
-            type: 'answer',
-            sdp: pc.localDescription.sdp
-          }));
-        }
-      } catch (error) {
-        console.error("❌ WebRTC 연결 실패:", error);
-      }
-    }, [user]);
 
   // 로봇 이동 제어 (STOMP 사용)
   const moveRobot = useCallback((linear, angular) => {
@@ -389,7 +323,6 @@ export const RobotProvider = ({ children }) => {
     <RobotContext.Provider value={{
       client,
       isConnected,
-      remoteStream,
       robotStatus, isRobotLoading,
       isVideoOn, toggleVideo,
       moveRobot, emergencyStop, toggleMode,

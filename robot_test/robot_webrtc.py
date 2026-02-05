@@ -1,3 +1,15 @@
+import sys
+import os
+import platform
+
+ros_distro = os.environ.get("ROS_DISTRO", "humble")
+py_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+ros_site_packages = f"/opt/ros/{ros_distro}/lib/{py_version}/site-packages"
+
+if os.path.exists(ros_site_packages):
+    if ros_site_packages not in sys.path:
+        sys.path.append(ros_site_packages)
+
 import asyncio
 import json
 import cv2
@@ -9,6 +21,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
@@ -17,6 +30,7 @@ from av import VideoFrame
 # ✅ 설정
 SERVER_URL = "https://i14c203.p.ssafy.io/ws"
 IMAGE_TOPIC = "/front_cam/compressed"
+ROBOT_ID = "1"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,13 +38,20 @@ class ImageSubscriber(Node):
     def __init__(self):
         super().__init__('webrtc_image_subscriber')
 
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         self.subscription = self.create_subscription(
             CompressedImage,
             IMAGE_TOPIC,
             self.listener_callback,
-            10
+            qos_profile
         )
         self.latest_frame = None
+        self.frame_count = 0
         self.get_logger().info(f"Waiting for Image on {IMAGE_TOPIC}")
     
     def listener_callback(self, msg):
@@ -42,6 +63,9 @@ class ImageSubscriber(Node):
 
             if frame is not None:
                 self.latest_frame = frame
+                self.frame_count += 1
+                if self.frame_count % 30 == 0:
+                    print(f"Frame Received: {frame.shape}")
         except Exception as e:
             self.get_logger().error(f"Image Decode Error: {e}")
 
@@ -57,9 +81,10 @@ class RosStreamTrack(VideoStreamTrack):
         if frame is None:
             # 카메라 오류 시 대기 화면
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(frame, "Waiting for ROS Topic", (100, 240), 
+            cv2.putText(frame, "Waiting for ROS Topic", (50, 240), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        else: pass
+            cv2.putText(frame, "QoS: Best Effort", (50, 300),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 1)
 
         new_frame = VideoFrame.from_ndarray(frame, format="bgr24")
         new_frame.pts = pts
@@ -91,7 +116,7 @@ async def run_robot(ros_node):
                     payload = json.dumps({
                         "sdp": pc.localDescription.sdp,
                         "type": pc.localDescription.type,
-                        "robotId": "1"
+                        "robotId": ROBOT_ID
                     })
                     send_frame = f"SEND\ndestination:/pub/peer/offer\ncontent-type:application/json\n\n{payload}\x00"
                     await ws.send_str(send_frame)
