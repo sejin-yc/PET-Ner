@@ -54,8 +54,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
 
       MQTT_BROKER_URL: tcp://robot_mqtt:1883
-      # MQTT_USERNAME: ${MQTT_USERNAME}
-      # MQTT_PASSWORD: ${MQTT_PASSWORD}
+
+      FILE_STORAGE_PATH: /app/storage
+    volumes:
+      - ./storage:/app/storage
+      - ./uploads:/app/uploads
     networks:
       - robot_network
   
@@ -81,6 +84,7 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./uploads:/var/www/uploads
+      - ./storage:/var/www/storage
     depends_on:
       - robot_client
       - robot_server
