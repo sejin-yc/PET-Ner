@@ -51,6 +51,21 @@ if os.getenv("JETSON_TTS_ONLY", "0").lower() not in ("1", "true", "yes"):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# cudnn.benchmark: 입력 크기가 요청마다 달라지면 오히려 느려질 수 있음 → 기본 끔, 필요 시 CUDNN_BENCHMARK=1 로 켜기
+if torch.cuda.is_available():
+    use_cudnn_benchmark = os.getenv("CUDNN_BENCHMARK", "0").lower() in ("1", "true", "yes")
+    torch.backends.cudnn.benchmark = use_cudnn_benchmark
+    if use_cudnn_benchmark:
+        logger.info("CUDA: cudnn.benchmark=True (입력 크기 일정할 때만 유리)")
+
+# TTS 속도 배율 (1.0=기본, 1.1~1.2=더 빠른 재생/일부 구간 추론 감소)
+def _get_tts_speed() -> float:
+    try:
+        v = float(os.getenv("TTS_SPEED", "1.0"))
+        return max(0.5, min(2.0, v))
+    except (TypeError, ValueError):
+        return 1.0
+
 # 전역 변수
 extractor = None
 inference_engine = None  # TTS 합성용 (서버 기동 시 미리 로드 가능)
@@ -120,6 +135,14 @@ async def lifespan(app: FastAPI):
             logger.info("TTS inference engine preloaded. 첫 재생 시 대기 없음.")
         else:
             logger.info("PRELOAD_TTS=false. TTS 엔진은 첫 /synthesize 호출 시 로드됩니다.")
+        # 추론 속도 관련 옵션 요약
+        logger.info(
+            "TTS 추론: USE_FP16=%s, USE_STREAM_INFERENCE=%s, TTS_SPEED=%s, CUDNN_BENCHMARK=%s",
+            os.getenv("USE_FP16", "true"),
+            os.getenv("USE_STREAM_INFERENCE", "false"),
+            _get_tts_speed(),
+            os.getenv("CUDNN_BENCHMARK", "0"),
+        )
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         raise
@@ -382,12 +405,13 @@ async def synthesize(
     if not text or not tokens:
         raise HTTPException(status_code=400, detail="text and tokens are required")
 
-    def _do_synth(engine, speaker_tensors, use_stream, text_frontend):
+    def _do_synth(engine, speaker_tensors, use_stream, text_frontend, speed):
         chunks = []
-        for model_output in engine.inference_with_tokens(
-            text, speaker_tensors, stream=use_stream, speed=1.0, text_frontend=text_frontend
-        ):
-            chunks.append(model_output["tts_speech"].cpu())
+        with torch.inference_mode():
+            for model_output in engine.inference_with_tokens(
+                text, speaker_tensors, stream=use_stream, speed=speed, text_frontend=text_frontend
+            ):
+                chunks.append(model_output["tts_speech"].cpu())
         return chunks
 
     try:
@@ -403,14 +427,17 @@ async def synthesize(
         logger.info("TTS 추론 시작 (엔진 미리 로드됨)" if already_loaded else "TTS 추론 시작 (방금 엔진 로드 완료)")
         speaker_tokens = _json_tokens_to_tensors(tokens)
         use_stream = os.getenv("USE_STREAM_INFERENCE", "false").lower() in ("true", "1", "yes")
+        speed = _get_tts_speed()
         text_frontend = not _contains_hangul(text)
         if not text_frontend:
             logger.info("한글 감지 → text_frontend=False (wetext 정규화 생략)")
+        if speed != 1.0:
+            logger.info(f"TTS_SPEED={speed} (재생 속도 배율)")
         chunks = None
         last_error = None
         for attempt in range(2):
             try:
-                chunks = _do_synth(engine, speaker_tokens, use_stream, text_frontend)
+                chunks = _do_synth(engine, speaker_tokens, use_stream, text_frontend, speed)
                 break
             except RuntimeError as e:
                 err_msg = str(e).lower()
