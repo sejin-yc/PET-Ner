@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRobot } from '../contexts/RobotContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Battery, Zap, Mic, Volume2, Play, BrainCircuit, Repeat, Hand } from 'lucide-react';
+import { Battery, Zap, Mic, Volume2, Play, BrainCircuit, Repeat, Hand, Utensils, Fish } from 'lucide-react';
 import api from '../api/axios';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import StreamPanel from '../components/StreamPanel';
@@ -12,7 +12,7 @@ import ControlPanel from '../components/ControlPanel';
 const Dashboard = () => {
   const { user } = useAuth();
   const { 
-    robotStatus, toggleMode, moveRobot,
+    robotStatus, toggleMode, moveRobot, feedRobot,
     sendTTS, startWalkieTalkie, stopWalkieTalkie, isRecording,
     trainVoice, stopVoiceTraining, isVoiceTraining, voiceTrainingText,
     isVoiceCloned, useClonedVoice, setUseClonedVoice,
@@ -172,7 +172,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* 2. ✅ 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
+        {/* 2. 실시간 영상 (StreamPanel 컴포넌트 재사용) */}
         <section className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm h-[400px]">
           <StreamPanel />
         </section>
@@ -209,8 +209,38 @@ const Dashboard = () => {
 
         {/* 2. 제어 컨트롤러 */}
         <div className={`transition-opacity duration-300 ${isAuto ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-          <ControlPanel />
+          <ControlPanel onMove={handleMove} />
         </div>
+
+        {/* 급여 시스템 (밥 주기 / 츄르 주기) */}
+        <section className='bg-white rounded-lg border border-gray-200 shadow-sm p-4'>
+          <h3 className='font-semibold text-gray-800 flex items-center gap-2 mb-3'>
+            <Utensils size={18} className='text-orange-500' /> 급여 제어
+          </h3>
+          <div className='grid grid-cols-2 gap-3'>
+            {/* 츄르 주기 */}
+            <button
+              onClick={() => feedRobot('churu')}
+              className='flex flex-col items-center justify-center p-3 rounded-lg bg-pink-50 border border-pink-100 text-pink-600 hover:bg-pink-100 transition-all active:scale-95 group'
+            >
+              <div className='bg-white p-2 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform'>
+                <Fish size={20} className='text-pink-500' />
+              </div>
+              <span className='text-xs font-bold'>츄르 주기</span>
+            </button>
+
+            {/* 밥 주기 */}
+            <button
+              onClick={() => feedRobot('meal')}
+              className='flex flex-col items-center justify-center p-3 rounded-lg bg-yellow-50 border border-yellow-100 text-yellow-600 hover:bg-yellow-100 transition-all active:scale-95 group'
+            >
+              <div className='bg-white p-2 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform'>
+                <Utensils size={20} className='text-yellow-500' />
+              </div>
+              <span className='text-xs font-bold'>밥 주기</span>
+            </button>
+          </div>
+        </section>
 
         {/* 3. 음성 제어 센터 */}
         <section className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 space-y-5">

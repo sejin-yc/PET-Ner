@@ -1,3 +1,4 @@
+import os
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -6,9 +7,11 @@ import json
 import paho.mqtt.client as mqtt
 import math
 import time
+import subprocess
+import ssl
 
 MQTT_BROKER_IP = "i14c203.p.ssafy.io"
-MQTT_PORT = 1883
+MQTT_PORT = 443
 
 ROBOT_ID = "1"
 
@@ -17,7 +20,7 @@ TOPIC_CONTROL = f"robot/{ROBOT_ID}/control"
 TOPIC_EVENT = f"robot/{ROBOT_ID}/cat_state"
 
 POS_TOPIC = "/amcl_pose"
-CMD_VEL_TOPIC = "/cmd_vel"
+CMD_VEL_TOPIC = "/cmd_vel_joy"
 GOAL_TOPIC = "/goal_pose"
 
 class MqttBridge(Node):
@@ -32,9 +35,13 @@ class MqttBridge(Node):
         msg_type = PoseWithCovarianceStamped if "amcl" in POS_TOPIC else Odometry
         self.create_subscription(msg_type, POS_TOPIC, self.listener_callback, 10)
 
+        self.homing_process = None
+
         # --- [3] MQTT 설정 ---
         self.current_mode = "manual"
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
+        self.client.ws_set_options(path="/mqtt")
+        self.client.tls_set_context(context=ssl.create_default_context())
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
 
@@ -59,16 +66,20 @@ class MqttBridge(Node):
 
             if command_type == "EMERGENCY_STOP":
                 self.get_logger().warn("🚨 EMERGENCY STOP RECEIVED!")
+                self.stop_homing_process()
                 self.stop_robot()
                 self.current_mode = "manual"
             elif command_type == "MODE_CHANGE":
                 new_mode = payload.get("mode", "manual")
+                if payload.get("value"): new_mode = payload.get("value")
+
                 self.get_logger().info(f"🔄 Mode Changed: {new_mode}")
                 self.current_mode = new_mode
 
                 if new_mode == "auto":
-                    self.go_to_origin()
+                    self.start_homing_process()
                 else:
+                    self.stop_homing_process()
                     self.stop_robot()
             elif command_type == "MOVE":
                 if self.current_mode == "manual":
@@ -80,6 +91,27 @@ class MqttBridge(Node):
         except Exception as e:
             self.get_logger().error(f"⚠️ Message parsing error: {e}")
     
+    def start_homing_process(self):
+        if self.homing_process and self.homing_process.poll() is None:
+            self.get_logger().warn("homing.py is already running.")
+            return
+        
+        self.get_logger().info("Starting homing.py")
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            script_path = os.path.join(current_dir, "homing.py")
+            self.homing_process = subprocess.Popen(["python3", script_path])
+        except Exception as e:
+            self.get_logger().error(f"Failed to start homing.py: {e}")
+    
+    def stop_homing_process(self):
+        if self.homing_process and self.homing_process.poll() is None:
+            self.get_logger().info("Killing homing.py")
+            self.homing_process.terminate()
+            self.homing_process.wait()
+            self.homing_process = None
+            self.get_logger().info("homing.py Stopped")
+    
     def stop_robot(self):
         twist = Twist()
         self.cmd_vel_pub.publish(twist)
@@ -90,24 +122,9 @@ class MqttBridge(Node):
         twist.angular.z = angular
         self.cmd_vel_pub.publish(twist)
     
-    def go_to_origin(self):
-        goal = PoseStamped()
-        goal.header.frame_id = "map"
-        goal.header.stamp = self.get_clock().now().to_msg()
-
-        goal.pose.position.x = 0.0
-        goal.pose.position.y = 0.0
-        goal.pose.orientation.w = 1.0
-
-        self.goal_pub.publish(goal)
-    
     def listener_callback(self, msg):
-        if "amcl" in POS_TOPIC:
-            position = msg.pose.pose.position
-            orientation = msg.pose.pose.orientation
-        else:
-            position = msg.pose.pose.position
-            orientation = msg.pose.pose.orientation
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
         
         _, _, yaw = self.euler_from_quaternion(orientation)
 

@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 캐시 문제 방지를 위해 clean install 권장
 COPY package*.json ./
-RUN npm ci 
+RUN npm install && npm install mqtt
 
 COPY . .
 RUN npm run build

@@ -21,7 +21,7 @@ services:
       retries: 5
 
   # 2. MQTT Broker: Mosquitto
-  mosquitto:
+  robot_mqtt:
     image: eclipse-mosquitto:2.0
     container_name: robot_mqtt
     restart: always
@@ -45,7 +45,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mosquitto:
+      robot_mqtt:
         condition: service_started
       cosyvoice_service:
         condition: service_healthy
@@ -59,7 +59,9 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       COSYVOICE_SERVICE_URL: http://cosyvoice_service:50001
+      FILE_STORAGE_PATH: /app/storage
     volumes:
+      - ./storage:/app/storage
       - ./uploads:/app/uploads
     networks:
       - robot_network
@@ -126,9 +128,11 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./uploads:/var/www/uploads
+      - ./storage:/var/www/storage
     depends_on:
       - robot_client
       - robot_server
+      - robot_mqtt
     networks:
       - robot_network
   
@@ -143,6 +147,8 @@ services:
     environment:
       - MTX_PROTOCOLS=tcp
       - MTX_WEBRTCADDITIONALHOSTS=i14c203.p.ssafy.io
+    networks:
+      - robot_network
   
   certbot:
     image: certbot/certbot
