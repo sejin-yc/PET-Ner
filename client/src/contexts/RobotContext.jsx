@@ -236,8 +236,8 @@ export const RobotProvider = ({ children }) => {
         rentId: 999,
         vehicleId: 101,
         fileName: `test_${dummyId}.jpg`,
-        url: "/uploads/test.jpg",
-        thumbnailUrl: "/uploads/test.jpg",
+        url: "https://placehold.co/600x400?text=Test+Video",
+        thumbnailUrl: "https://placehold.co/600x400?text=Test+Video",
         duration: "00:15",
         behavior: "테스트 감지",
         catName: "테스트 냥이",
@@ -251,19 +251,29 @@ export const RobotProvider = ({ children }) => {
     }
   };
 
-  const deleteVideo = async (id, isLocal = false) => {
+  const deleteVideo = async (id) => {
+    if (!id) {
+      console.error("삭제할 ID가 없습니다.");
+      return;
+    }
+
     try {
-      if (isLocal || (typeof id === 'number' && id > 1700000000000)) {
+      const targetVideo = videos.find(v => v.id === id);
+      const isLocalVideo = targetVideo?.isLocal || (typeof id === 'number' && id > 1700000000000);
+      if (isLocalVideo) {
         setVideos((prev) => prev.filter(v => v.id !== id));
         toast.success("삭제되었습니다.");
         return;
+      } else {
+        await api.delete(`/videos/${id}`);
+        setVideos((prev) => prev.filter(v => v.id !== id));
+        toast.success("삭제되었습니다.") 
       }
-
-      await api.delete(`/videos/${id}`);
-      setVideos((prev) => prev.filter(v => v.id !== id));
-      toast.success("삭제되었습니다.")
     } catch (error) {
       console.error("영상 삭제 에러:", error)
+      if (error.reponse?.status === 404 || error.response?.status === 400) {
+        setVideos((prev) => prev.filter(v => v.id !== id));
+      }
       toast.error("삭제 실패");
     }
   };
