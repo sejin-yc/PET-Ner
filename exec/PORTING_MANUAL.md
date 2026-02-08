@@ -187,7 +187,7 @@ docker compose logs -f robot_server
 ### 6.1 접속 및 로그인
 
 1. PC 또는 모바일 브라우저에서 `https://i14c203.p.ssafy.io` 접속.
-2. 로그인 페이지에서 테스트 계정(`test`/`1234`)으로 로그인.
+2. 로그인 페이지에서 테스트 계정(`admin@admin.com`/`admin1234`)으로 로그인.
 
 ### 6.2 로봇 상태 모니터링 (Dashboard)
 
