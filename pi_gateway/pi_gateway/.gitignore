@@ -1,0 +1,19 @@
+# python
+__pycache__/
+*.pyc
+
+# virtualenv
+venv/
+.venv/
+env/
+
+# editor
+.vscode/
+
+# os
+.DS_Store
+
+# models (대용량, models/README.md는 유지)
+models/*.pt
+models/swin_tiny_best/
+models/yolo_pose/

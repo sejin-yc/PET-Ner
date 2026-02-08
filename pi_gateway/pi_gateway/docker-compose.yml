@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  pi-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pi-gateway
+    image: pi-gateway:latest
+    
+    # 네트워크 모드: host (ROS2 DDS 통신 및 UART 접근을 위해)
+    network_mode: host
+    
+    # 환경 변수
+    environment:
+      - ROS_DOMAIN_ID=1
+      - ROS_DISTRO=humble
+      - UART_ENABLED=1
+      - ROS_ENABLED=1
+      - WEBRTC_SIGNALING_ENABLED=1
+      - UART_PORT=/dev/ttyUSB0
+      - UART_BAUD=115200
+      - HOST=0.0.0.0
+      - PORT=8000
+      - BE_WS_URL=wss://i14c203.p.ssafy.io/ws
+      - CAMERA_TOPIC=/front_cam/compressed
+      - ROBOT_ID=1
+      - PYTHONPATH=/app:/app/src
+    
+    # UART 디바이스 접근 (호스트의 /dev/ttyUSB0을 컨테이너에 마운트)
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    
+    # 볼륨 마운트 (선택사항: 로그나 설정 파일을 호스트와 공유)
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    
+    # 재시작 정책
+    restart: unless-stopped
+    
+    # 로그 설정
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

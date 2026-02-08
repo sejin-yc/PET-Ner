@@ -1,0 +1,8 @@
+# 고양이 탐지 서비스 전용 (scripts/cat_detection_service.py)
+# pip install -r requirements_cat.txt
+
+torch
+timm
+ultralytics
+opencv-python
+requests
