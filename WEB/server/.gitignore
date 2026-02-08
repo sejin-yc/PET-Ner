@@ -1,0 +1,22 @@
+# === Mac/Linux/IDE 시스템 파일 ===
+.DS_Store
+.vscode/
+.idea/
+*.iml
+*.log
+
+# === Gradle Build ===
+.gradle/
+build/
+out/
+bin/
+target/
+
+# === Gradle Wrapper ===
+!gradle/wrapper/gradle-wrapper.jar
+
+# === Spring Boot Logs ===
+logs/
+*.log
+
+src/main/resources/application.yml
