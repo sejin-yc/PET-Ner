@@ -33,3 +33,19 @@ PET-Ner는 기능별로 3개의 층을 분리하여 설계되었습니다.
 ## ✅ 하드웨어 검증 완료
 * **배선 보강:** GND 라인 솔더링 레이어링 완료 [후면 배선 보기](./images/hardware/hardware_wiring_back.jpg)
 * **전압 분배:** 배터리 모니터링 회로(10k:3.3k) 검증 완료 [검증 샷 보기](./images/hardware/voltage_divider_test.jpg)
+
+## 🦾 Mechanical Design
+
+본 프로젝트의 하드웨어는 클라우드 기반 CAD인 **Onshape**를 사용하여 설계되었습니다.
+모든 부품은 3D 프린팅(PLA) 및 레이저 커팅에 최적화되도록 DFM(Design for Manufacturing)을 고려하여 제작되었습니다.
+
+
+### 📸 Assembly & Implementation
+설계된 모델을 바탕으로 실제 조립된 제어부(Control Layer)의 모습입니다.
+
+![Control Layer Assembly](images/3d_modeling/assembly_full_isometric.png)
+* **Design Tool:** Onshape (Cloud CAD)
+* **Fabrication:** 3D Printing (Ender-3, PLA), Laser Cutting (Acryl 3T)
+* **Key Features:**
+    * STM32 & RPi 5 적층 구조 설계 (Space Optimization)
+    * 유지보수를 고려한 모듈형 배선 구조

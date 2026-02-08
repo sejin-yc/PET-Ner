@@ -1,34 +1,74 @@
-# 🔌 STM32G431RB Pin Mapping
+# 📍 Pin Configuration & Mapping
 
-## 1. Motor Control (Actuator)
-현재 모터의 제어 신호는 만능기판의 기존 배선과 충돌을 피하기 위해 **점퍼선을 사용하여 모터 드라이버와 직결**되었습니다.
+> **STM32F446RE (Nucleo-64)** 핀 할당 상세 내역입니다.
+> 하드웨어 배선 및 펌웨어 디버깅 시 이 문서를 참조하십시오.
 
-| Motor Position | Signal | STM32 Pin | Timer/Channel | Note |
-| :--- | :--- | :--- | :--- | :--- |
-| **Front Left (FL)** | PWM | PA2 or PB14* | TIM15 CH1 | `htim15` 제어 |
-| | DIR | **PB4** | GPIO Output | |
-| **Front Right (FR)** | PWM | PA3 or PB15* | TIM15 CH2 | `htim15` 제어 |
-| | DIR | **PB5** | GPIO Output | |
-| **Rear Left (RL)** | PWM | PB8 | TIM16 CH1 | `htim16` 제어 |
-| | DIR | **PB10** | GPIO Output | |
-| **Rear Right (RR)** | PWM | PB9 | TIM17 CH1 | `htim17` 제어 |
-| | DIR | **PC3** | GPIO Output | |
+## 1. DC Motor Drive System (Mecanum Wheel)
 
-*(*Note: PWM 핀은 CubeMX 설정에 따르며, 코드상에서는 `htim15`, `htim16`, `htim17`의 채널을 통해 제어됨)*
+메카넘 휠 구동을 위한 DC 모터 제어 핀입니다. (PWM 속도 제어 + GPIO 방향 제어)
 
-## 2. Encoders (Sensor)
-엔코더 카운팅을 위해 STM32의 타이머 엔코더 모드를 사용합니다.
+| Motor Location | PWM Pin (Speed) | Timer Channel | DIR Pin (Direction) | GPIO Port |
+| --- | --- | --- | --- | --- |
+| **Front Left (FL)** | **PC6** | TIM8_CH1 | **PB0** | GPIO_Output |
+| **Front Right (FR)** | **PC7** | TIM8_CH2 | **PB1** | GPIO_Output |
+| **Rear Left (RL)** | **PC8** | TIM8_CH3 | **PB2** | GPIO_Output |
+| **Rear Right (RR)** | **PC9** | TIM8_CH4 | **PB10** | GPIO_Output |
 
-| Encoder | STM32 Timer | Resolution | Status |
-| :--- | :--- | :--- | :--- |
-| **FL Encoder** | TIM1 | 16-bit | ⚠️ 하드웨어 신호 불안정 (가상값 대체) |
-| **FR Encoder** | TIM3 | 16-bit | ⚠️ 하드웨어 신호 불안정 (가상값 대체) |
-| **RL Encoder** | TIM2 | 16-bit | ✅ 정상 동작 (마스터 기준) |
-| **RR Encoder** | TIM4 | 16-bit | ✅ 정상 동작 (마스터 기준) |
+* **PWM Frequency:** 20kHz (Center-aligned recommended for H-Bridge)
+* **Logic:** DIR High/Low for CW/CCW
 
-## 3. Communication
-| Function | Pin | Peripheral | Use Case |
-| :--- | :--- | :--- | :--- |
-| **PC/RPi UART** | PA2 (TX), PA3 (RX) | USART2 | Debugging & Main Control |
-| **Sub UART** | PA9 (TX), PA10 (RX) | USART1 | RPi Secondary (Optional) |
+---
 
+## 2. Encoder Interface (Feedback)
+
+모터 회전수 피드백을 위한 엔코더 입력 핀입니다. (Quadrature Encoder Mode)
+
+| Encoder Location | Phase A Pin | Phase B Pin | Associated Timer |
+| --- | --- | --- | --- |
+| **FL Encoder** | **PA0** | **PA1** | TIM2 or TIM5 |
+| **FR Encoder** | **PB6** | **PB7** | TIM4 |
+| **RL Encoder** | **PA6** | **PA7** | TIM3 |
+| **RR Encoder** | **PA8** | **PA9** | TIM1 |
+
+---
+
+## 3. Robot Arm & Actuators (Servo)
+
+로봇팔 및 그리퍼/주사기 제어를 위한 서보모터 PWM 핀입니다.
+
+| Function | Pin Name | Timer Channel | Note |
+| --- | --- | --- | --- |
+| **Servo (180°)** | **PB14** | TIM12_CH1 | 주사기 제어용 |
+| **Servo (360°)** | **PB15** | TIM12_CH2 | 사료 공급기 구동용 |
+
+* **PWM Frequency:** 50Hz (Period: 20ms)
+
+---
+
+## 4. Communication & Sensors (IMU / UART)
+
+상위 제어기(RPi/Jetson) 통신 및 IMU 센서 연결 핀입니다.
+
+| Function | Interface | TX / SCL Pin | RX / SDA Pin | Description |
+| --- | --- | --- | --- | --- |
+| **Main Comm** | **UART4** | **PC10** | **PC11** | ROS2 통신 (to RPi/Jetson) |
+| **Debug Console** | **USART2** | **PA2** | **PA3** | ST-Link Virtual Com Port (Log) |
+| **IMU Sensor** | **I2C1** | **PB8** | **PB9** | BNO080 / MPU6050 연결 |
+
+### 🧭 IMU Control Pins
+
+I2C 통신 외에 IMU 모듈 제어를 위해 할당된 추가 GPIO입니다.
+
+* **IMU_INT (Interrupt):** `PC13` (Active Low/High check required)
+* **IMU_RST (Reset):** `PC14`
+
+---
+
+## 5. System & Debug
+
+| Pin Name | Function | Description |
+| --- | --- | --- |
+| **PA13** | **SWDIO** | Serial Wire Debug Data (ST-Link) |
+| **PA14** | **SWCLK** | Serial Wire Debug Clock (ST-Link) |
+| **PH0/PH1** | **OSC_IN/OUT** | High Speed External Clock (HSE) |
+| **NRST** | **Reset** | Hardware Reset Button |
