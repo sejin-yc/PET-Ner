@@ -1,0 +1,27 @@
+fastapi
+uvicorn
+pyyaml
+pyserial
+
+# MQTT↔Pi 브리지 (scripts/mqtt_pi_bridge.py) 전용
+paho-mqtt
+requests
+websocket-client
+
+# ROS2 의존성 (데모 모드에서도 사용)
+numpy
+
+# 고양이 탐지 서비스 (scripts/cat_detection_service.py)
+# torch, timm, ultralytics, opencv-python (개별 설치 또는 아래)
+# pip install torch timm ultralytics opencv-python
+# 젯슨→웹 직접 MJPEG (SERVE_MJPEG=1)
+flask
+
+# WebRTC 카메라 스트리밍 (scripts/robot_webrtc.py)
+aiortc
+av
+aiohttp
+opencv-python
+
+# TTS 오디오 재생 (I2S DAC 지원)
+pyaudio>=0.2.11

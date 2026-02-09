@@ -1,0 +1,182 @@
+<?xml version="1.0"?>
+<robot name="catbot_full" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <material name="3d_printed"><color rgba="1.0 0.82 0.12 1.0"/></material>
+  <material name="sts3215"><color rgba="0.1 0.1 0.1 1.0"/></material>
+  <material name="grey"><color rgba="0.5 0.5 0.5 1.0"/></material>
+
+  <link name="base_footprint"/>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/><child link="base_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 -1.5708"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/base/rc_car.dae" scale="1 1 1"/></geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 1.5708"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/base/rc_car.dae" scale="1 1 1"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/><mass value="2.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.02" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <xacro:macro name="m_wheel" params="prefix x_offset y_offset filename">
+    <link name="${prefix}_wheel">
+      <visual>
+        <origin rpy="1.5708 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://cat_bot_description/meshes/wheels/${filename}.dae" scale="1 1 1"/>
+        </geometry>
+        <material name="sts3215"/>
+      </visual>
+      <collision>
+        <origin rpy="1.5708 0 0" xyz="0 0 0"/>
+        <geometry><cylinder radius="0.05" length="0.05"/></geometry>
+      </collision>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/><child link="${prefix}_wheel"/>
+      <origin xyz="${x_offset} ${y_offset} 0.03" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/> </joint>
+  </xacro:macro>
+
+  <xacro:m_wheel prefix="front_left"  x_offset="0.12"  y_offset="0.15"  filename="mecanum_wheel_left_front"/>
+  <xacro:m_wheel prefix="front_right" x_offset="0.12"  y_offset="-0.15" filename="mecanum_wheel_right_front"/>
+  <xacro:m_wheel prefix="rear_left"   x_offset="-0.12" y_offset="0.15"  filename="mecanum_wheel_left_back"/>
+  <xacro:m_wheel prefix="rear_right"  x_offset="-0.12" y_offset="-0.15" filename="mecanum_wheel_right_back"/>
+
+  <joint name="arm_mount_joint" type="fixed">
+    <parent link="base_link"/><child link="arm_base_link"/>
+    <origin xyz="0.08 -0.022 0.11" rpy="0 0 1.5708"/> 
+  </joint>
+
+  <link name="arm_base_link">
+    <visual>
+      <origin xyz="0.02069 0.02212 0.03008" rpy="1.5708 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/base_motor_holder_so101_v1.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+    <visual>
+      <origin xyz="0.02079 0.02212 0.03008" rpy="1.5708 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/base_so101_v2.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+
+  <link name="shoulder">
+    <visual>
+      <origin xyz="-0.0303 0.0004 -0.0417" rpy="1.5708 1.5708 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/sts3215_03a_v1.stl" scale="1 1 1"/></geometry>
+      <material name="sts3215"/>
+    </visual>
+  </link>
+  <joint name="Rotation" type="revolute">
+    <origin xyz="0.0207 -0.023 0.065" rpy="-3.14159 0 1.5708"/>
+    <parent link="arm_base_link"/><child link="shoulder"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-1.91" upper="1.91"/>
+  </joint>
+
+  <link name="upper_arm">
+    <visual>
+      <origin xyz="-0.065 0.012 0.0182" rpy="3.14159 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/upper_arm_so101_v1.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+  <joint name="Pitch" type="revolute">
+    <origin xyz="-0.030 -0.018 -0.045" rpy="-1.5708 -1.5708 0"/>
+    <parent link="shoulder"/><child link="upper_arm"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-1.74" upper="1.74"/>
+  </joint>
+
+  <link name="lower_arm">
+    <visual>
+      <origin xyz="-0.0648 -0.032 0.0182" rpy="-3.14159 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/under_arm_so101_v1.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+  <joint name="Elbow" type="revolute">
+    <origin xyz="-0.105 -0.028 0" rpy="0 0 1.5708"/>
+    <parent link="upper_arm"/><child link="lower_arm"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-1.74" upper="1.57"/>
+  </joint>
+
+  <link name="wrist">
+    <visual>
+      <origin xyz="0 -0.028 0.0181" rpy="-1.5708 -1.5708 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/wrist_roll_pitch_so101_v2.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+  <joint name="Wrist_Pitch" type="revolute">
+    <origin xyz="-0.125 0.005 0" rpy="0 0 -1.5708"/>
+    <parent link="lower_arm"/><child link="wrist"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-1.65" upper="1.65"/>
+  </joint>
+
+  <link name="gripper">
+    <visual>
+      <origin xyz="0 -0.0002 0.0009" rpy="-3.14159 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/wrist_roll_follower_so101_v1.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+  <joint name="Wrist_Roll" type="revolute">
+    <origin xyz="0 -0.055 0.018" rpy="1.5708 0 3.14159"/>
+    <parent link="wrist"/><child link="gripper"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-2.79" upper="2.79"/>
+  </joint>
+
+  <link name="jaw">
+    <visual>
+      <origin xyz="0 0 0.0189" rpy="0 0 0"/>
+      <geometry><mesh filename="package://cat_bot_description/meshes/arm/moving_jaw_so101_v1.stl" scale="1 1 1"/></geometry>
+      <material name="3d_printed"/>
+    </visual>
+  </link>
+  <joint name="Jaw" type="revolute">
+    <origin xyz="0.020 0.018 -0.023" rpy="1.5708 0 0"/>
+    <parent link="gripper"/><child link="jaw"/>
+    <axis xyz="0 0 1"/><limit effort="10" velocity="10" lower="-0.17" upper="1.74"/>
+  </joint>
+
+  <gazebo>
+    <plugin name="mecanum_drive" filename="libgazebo_ros_planar_move.so">
+      <ros><remapping>cmd_vel:=cmd_vel</remapping></ros>
+      <robot_base_frame>base_footprint</robot_base_frame>
+    </plugin>
+  </gazebo>
+
+<joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_frame"/>
+    <origin xyz="0.085 0.00 0.105" rpy="0 0 3.141592"/>
+  </joint>
+
+  <link name="laser_frame">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.03435" length="0.0414"/>
+      </geometry>
+      <material name="grey"/> </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03435" length="0.0414"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.178"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+</robot>

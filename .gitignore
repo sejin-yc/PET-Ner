@@ -1,0 +1,98 @@
+# === 🖥️ OS 및 IDE 설정 ===
+.DS_Store
+Thumb.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log
+*.iml
+
+# === 🔐 보안 및 환경 변수 (절대 금지!) ===
+*.pem
+*.key
+I14C203T.pem
+.env
+.env.local
+.env.*.local
+
+# === 🐳 Docker 및 인프라 ===
+postgres_data/
+nginx/ssl/
+
+# MQTT 데이터 및 로그
+mosquitto/data/
+mosquitto/log/
+*.db
+
+# === ☕ Backend (Spring Boot) ===
+server/.gradle/
+server/build/
+server/out/
+server/bin/
+server/.settings/
+server/.classpath
+server/.project
+server/.factorypath
+server/HELP.md
+server/logs
+
+!server/gradle/wrapper/gradle-wrapper.jar
+# server/src/main/resources/application-prod.yml
+
+# === ⚛️ Frontend (React) ===
+client/node_modules/
+client/dist/
+client/build/
+client/.env.local
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+client/.pnp.*
+
+# === 🐍 Fake Robot (Python) ===
+fake_robot/venv/
+fake_robot/.venv/
+fake_robot/env/
+fake_robot/__pycache__/
+fake_robot/*.pyc
+fake_robot/.pytest_cache/
+fake_robot/.ipynb_checkpoints/
+
+# 환경변수 파일 무시 (보안)
+.env
+
+# === 🎙️ CosyVoice / 음성 ===
+cosyvoice_models/
+uploads/
+
+# === 📁 기타 (TTS 외) ===
+etc/
+
+# === master 쪽 공통 무시 (병합) ===
+data/
+outputs/
+notebooks/
+__pycache__/
+.venv/
+src/venv/
+src/.venv/
+**/__pycache__/
+*.pyc
+build/
+install/
+log/
+src/runs/
+src/images/
+mp4
+*.jpg
+*.png
+*.csv
+*.MOV
+*.mov
+*.webm
+*.txt
+*.mp4
+**/*.jpg
+**/*.png
+**/*.pt
