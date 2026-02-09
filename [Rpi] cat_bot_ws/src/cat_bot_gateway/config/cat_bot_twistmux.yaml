@@ -1,0 +1,28 @@
+twist_mux:
+  ros__parameters:
+    topics:
+      navigation:
+        topic: /cmd_vel
+        timeout: 0.5
+        priority: 10
+
+      cmd_nav:
+        topic: /cmd_vel_nav
+        timeout: 0.5
+        priority: 30
+
+      manual_drive:
+        topic: /cmd_vel_joy
+        timeout: 0.5
+        priority: 80
+
+      aruco_marker:
+        topic: /cmd_vel_aruco
+        timeout: 0.5
+        priority: 50
+
+    locks:
+      emergency_stop:
+        topic: /estop
+        timeout: 0.0
+        priority: 255
