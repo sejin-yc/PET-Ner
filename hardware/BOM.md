@@ -6,13 +6,13 @@
 - [ ] JGB37-520 인코더 모터 (4개)
 - [ ] MDD10A 모터 드라이버 (2개)
 - [ ] 97mm 메카넘 휠 (1세트)
-- [ ] BNO085 IMU 센서 (1개)
 
 ### Tier 2: Logic & Power Module
-- [ ] STM32 Nucleo-F401RE (1개)
+- [ ] STM32 Nucleo-F446RE (1개)
 - [ ] LDS-01 LiDAR (1개)
 - [ ] XL4016 / XL4015 Buck Converter (각 1개)
 - [ ] LTC3780 Buck-Boost Module (1개)
+- [ ] 6구 Fuse Hub
 
 ### Tier 3: AI & Main Power
 - [ ] Jetson Orin Nano (1개)
