@@ -64,3 +64,6 @@ fake_robot/.ipynb_checkpoints/
 # === 🎙️ CosyVoice / 음성 ===
 cosyvoice_models/
 uploads/
+
+# === 📁 기타 (TTS 외) ===
+etc/

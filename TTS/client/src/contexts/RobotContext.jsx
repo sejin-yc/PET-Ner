@@ -39,9 +39,6 @@ export const RobotProvider = ({ children }) => {
   const[isRobotLoading, setIsRobotLoading] = useState(true);
   const[videos, setVideos] = useState([]);
   const[isVideoOn, setIsVideoOn] = useState(true);
-  // 아래 두 변수는 WebRTC 연결 관련 변수
-  const [remoteStream, setRemoteStream] = useState(null);
-  const peerConnection = useRef(null);
 
   const getLocalVideos = () => {
     try {
