@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+.gradle/
+build/
+dist/
+
+# Environment variables (보안)
+.env
+.DS_Store
+
+# Data & Logs
+postgres_data/
+*.log

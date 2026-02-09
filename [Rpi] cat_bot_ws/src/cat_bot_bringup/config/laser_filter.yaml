@@ -1,0 +1,15 @@
+scan_to_scan_filter_chain:
+  ros__parameters:
+    filter1:
+      name: body_box_filter
+      type: laser_filters/LaserScanBoxFilter
+      params:
+        box_frame: laser_frame
+        # 범위를 뒤쪽(-x)으로 10cm, 옆쪽(y)으로 각 5cm씩 더 넓힙니다.
+        min_x: -0.10  # 기존 -0.30에서 확대 (뒤쪽 프레임까지 커버)
+        max_x: 0.10   
+        min_y: -0.15  # 기존 -0.20에서 확대 (바퀴 바깥쪽까지 커버)
+        max_y: 0.15   # 기존 0.20에서 확대
+        min_z: -0.20
+        max_z: 0.20
+        invert: false

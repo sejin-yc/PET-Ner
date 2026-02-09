@@ -1,0 +1,67 @@
+# jetson
+
+# 1
+
+ros2 run gripper_cam dual_cam_pub
+
+# 2
+
+run_server
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+# LOCAL 
+cd catbot_ws/src/catbot_interfaces/src/
+
+
+
+# 1
+
+python3 aruco.py --ros-args \
+  -p image_topic:=/front_cam/compressed \
+  -p publish_in_base:=true \
+  -p base_frame:=base_link \
+  -p cam_in_base_x:=0.15 -p cam_in_base_y:=0.00 -p cam_in_base_z:=0.10 \
+  -p cam_in_base_roll_deg:=-90.0 -p cam_in_base_pitch_deg:=0.0 -p cam_in_base_yaw_deg:=-90.0
+
+
+# 2
+
+
+python3 dock_controller.py
+
+
+
+
+# 3
+
+python3 /home/hj/catbot_ws/src/catbot_interfaces/src/mission.py --ros-args   -p mission_yaml:=/home/hj/catbot_ws/src/catbot_interfaces/src/config/mission.yaml   -p points_yaml:=//home/hj/catbot_ws/src/catbot_interfaces/src/config/points.yaml   -p auto_start:=true
+
+
+
+----------------------------
+
+# STM 신호 보내기
+ssh c203@172.30.1.83
+
+
+# 츄르
+echo -n "k" > /dev/ttyAMA0
+
+# 밥
+echo -n "i" > /dev/ttyAMA0

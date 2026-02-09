@@ -1,0 +1,15 @@
+# ROS 2 Build / Install / Log Directories
+build/
+install/
+log/
+
+# Robot Model Files (3D Geometry)
+*.stl
+*.dae
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Local IDE Settings (Optional)
+.vscode/

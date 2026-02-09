@@ -1,0 +1,72 @@
+uart:
+  port: /dev/ttyAMA0   # GPIO 직결: /dev/ttyAMA0 또는 /dev/serial0. USB-UART: /dev/ttyUSB0
+  baudrate: 115200
+  enabled: true          # 연결시 true
+  tx_rate_hz: 20
+
+# 누적 틱 → Odom (nav_msgs) 계산용. 메카넘 휠 97mm.
+# PPR = 11 (모터축 기준), 기어비 = 57:1
+# STM32 TIM Encoder mode 사용 시 x4 디코딩 적용됨
+# meters_per_tick = (π × 0.097) / (11 × 57 × 4) = 0.3047 / 2508 = 0.0001215 m/tick
+# STM32가 보내는 델타 틱은 이미 x4 카운트이므로, 거리 = delta_ticks * meters_per_tick 만 사용 (델타 틱에 4 나누면 안 됨)
+encoder:
+  meters_per_tick: 1.215e-4   # 1틱당 이동거리(m). (π×0.097)/(11×57×4) = 0.0001215 (x4 디코딩 고려)
+  odom_lx: 0.12            # m, 로봇 앞뒤 반거리 (메카넘 4→3 wz 분모). URDF 기준: 앞바퀴(0.12m) ~ 뒤바퀴(-0.12m) 거리의 반
+  odom_ly: 0.15            # m, 로봇 좌우 반거리. URDF 기준: 왼쪽(0.15m) ~ 오른쪽(-0.15m) 거리의 반
+  # URDF 파일: [RPi] cat_bot_ws/src/cat_bot_description/urdf/catbot_full.xacro 참고
+  # SLAM+nav2 최적화 설정
+  use_imu_yaw: true        # IMU yaw 우선 사용 (필수에 가까움, IMU 없으면 false)
+  use_imu_gyro: true       # IMU gyro_z 사용 (가능하면, IMU 없으면 false)
+  encoder_filter_alpha: 0.7  # EMA 필터링 (0.6~0.75 권장, nav2 지연 생기면 올리기)
+  fl_estimation_method: "rr"  # FL 추정 방법: "rr" (v_fl=v_rr) 또는 "fr_rr_avg" (v_fl=0.5*(v_rr+v_fr))
+  encoder_mode: "3wheel"   # 엔코더 모드: "auto" (자동 감지), "4wheel", "3wheel"
+
+
+teleop:
+  linear_speed: 0.20
+  angular_speed: 0.80
+
+safety:
+  cmd_timeout_ms: 500
+
+# 패트롤 스케줄 설정
+patrol:
+  interval_hours: 4.0              # 순찰 간격 (시간). 0이면 비활성화. 예: 4.0 = 4시간마다 자동 순찰 시작
+
+# 패트롤 중 액션 스케줄 설정
+patrol_actions:
+  # 변치우기: 매번 순찰할 때마다 실행
+  litter_clean_every_patrol: true  # 변치우기: 매번 순찰할 때마다 실행 (true) 또는 비활성화 (false)
+  
+  # 급식: 매번 순찰할 때마다 실행
+  feed_every_patrol: true          # 급식: 매번 순찰할 때마다 실행 (true) 또는 비활성화 (false)
+  feed_level: 2                    # 급식 레벨 (1~3)
+  
+  # 급수: 매번 순찰할 때마다 실행 (신선한 물)
+  water_every_patrol: true         # 급수: 매번 순찰할 때마다 실행 (true) 또는 비활성화 (false)
+
+# 홈 이동 설정 (수동→자동 전환 시 자동 실행)
+homing:
+  home_x: 1.2                      # 홈 위치 X 좌표 (m)
+  home_y: 1.7                      # 홈 위치 Y 좌표 (m)
+  home_yaw_deg: -180.0             # 홈 위치 절대 yaw 각도 (도)
+  control_hz: 20.0                 # 제어 주파수 (Hz)
+  fixed_vx: 0.20                   # X축 이동 속도 (m/s)
+  fixed_vy: 0.20                   # Y축 이동 속도 (m/s, 횡이동)
+  fixed_wz: 0.60                   # 회전 속도 (rad/s)
+  tol_axis: 0.03                   # 축 방향 허용 오차 (m)
+  tol_perp: 0.06                   # 수직 방향 허용 오차 (m)
+  tol_yaw: 0.05                    # yaw 허용 오차 (rad)
+  goto_timeout: 60.0               # 이동 타임아웃 (초)
+  rotate_timeout: 20.0             # 회전 타임아웃 (초)
+  pulse_enable: true                # Pulse 모드 활성화 (가까워지면 펄스 모드)
+  pulse_near_axis: 0.12            # 축 방향 펄스 시작 거리 (m)
+  pulse_near_yaw: 0.25             # 회전 펄스 시작 각도 (rad)
+  pulse_on_sec: 0.12               # 펄스 ON 시간 (초)
+  pulse_off_sec: 0.08              # 펄스 OFF 시간 (초)
+
+# 고양이 탐지 (cat_detection_service.py)
+cat_detection:
+  swin_ckpt: "models/swin_tiny_best/best.pt"   # 또는 models/swin_tiny_best/best (폴더)
+  yolo_pose: "models/yolo_pose.pt"
+  clips_dir: "cat_clips"

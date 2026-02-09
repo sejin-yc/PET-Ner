@@ -1,0 +1,40 @@
+# 빌드 및 실행 결과물 제외
+catbotarm_ws/build/
+devel/
+catbotarm_ws/install/
+catbotarm_ws/log/
+
+# 파이썬 캐시 및 기타 시스템 파일
+__pycache__/
+.catkin_tools/
+.vscode/
+
+# ROS build directories (절대 올리면 안 됨)
+build/
+devel/
+install/
+log/
+.catkin_workspace
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE settings (VSCode 등 설정 파일)
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+
+# Virtual Environments
+venv/
+env/
+
+# Large Media files (카메라 테스트 데이터 등)
+*.jpg
+*.png
+*.mp4
+*.avi
+*.h5
+*.weights
