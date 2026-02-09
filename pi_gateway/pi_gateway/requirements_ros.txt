@@ -1,0 +1,5 @@
+# ROS2 환경에서는 아래 패키지는 보통 apt로 설치됩니다.
+# 예: sudo apt install ros-<distro>-rclpy ros-<distro>-geometry-msgs ros-<distro>-nav-msgs
+rclpy
+geometry_msgs
+nav_msgs 
