@@ -1,0 +1,37 @@
+============================================================
+비교 결과
+============================================================
+  ref 키: ['flow_embedding', 'flow_prompt_speech_token', 'flow_prompt_speech_token_len', 'llm_embedding', 'llm_prompt_speech_token', 'llm_prompt_speech_token_len', 'prompt_speech_feat', 'prompt_speech_feat_len', 'prompt_text_token', 'prompt_text_token_len']
+  api 키: ['flow_embedding', 'flow_prompt_speech_token', 'flow_prompt_speech_token_len', 'llm_embedding', 'llm_prompt_speech_token', 'llm_prompt_speech_token_len', 'prompt_speech_feat', 'prompt_speech_feat_len', 'prompt_text_token', 'prompt_text_token_len']
+  flow_embedding: 값 불일치 (shape=torch.Size([1, 192]), diff=0.07860326766967773)
+  flow_prompt_speech_token: 값 불일 치 (shape=torch.Size([1, 598]), diff=7)
+  flow_prompt_speech_token_len: OK (shape=torch.Size([1]))
+ (shape=torch.Size([1, 192]), diff=0.07860326766967773)
+  llm_prompt_speech_token: 값 불일치 (shape=torch.Size([1, 598]), diff=7)     
+  llm_prompt_speech_token_len: OK (shape=torch.Size([1]))
+  prompt_speech_feat: 값  불일치 (shape=torch.Size([1, 1196, 80]), diff=3.9731969833374023)
+  prompt_speech_feat_len: OK (shape=torch.Size([1]))
+  prompt_text_token: OK (shape=torch.Size([1, 104]))
+  prompt_text_token_len: OK (shape=torch.Size([1])) 
+
+  => 차이가 있습니다. (API는 WAV를 16kHz 모노로 변환할 수 있어 미세 차이 가능)
+
+  ---
+
+  ============================================================
+비교 결과
+============================================================
+  ref 키: ['flow_embedding', 'flow_prompt_speech_token', 'flow_prompt_speech_token_len', 'llm_embedding', 'llm_prompt_speech_token', 'llm_prompt_speech_token_len', 'prompt_speech_feat', 'prompt_speech_feat_len', 'prompt_text_token', 'prompt_text_token_len']
+  api 키: ['flow_embedding', 'flow_prompt_speech_token', 'flow_prompt_speech_token_len', 'llm_embedding', 'llm_prompt_speech_token', 'llm_prompt_speech_token_len', 'prompt_speech_feat', 'prompt_speech_feat_len', 'prompt_text_token', 'prompt_text_token_len']
+  flow_embedding: OK (shape=torch.Size([1, 192]))
+  flow_prompt_speech_token: OK (shape=torch.Size([1, 598]))
+  flow_prompt_speech_token_len: OK (shape=torch.Size([1]))
+  llm_embedding: OK (shape=torch.Size([1, 192]))
+  llm_prompt_speech_token: OK (shape=torch.Size([1, 598]))
+  llm_prompt_speech_token_len: OK (shape=torch.Size([1]))
+  prompt_speech_feat: OK (shape=torch.Size([1, 1196, 80]))
+  prompt_speech_feat_len: OK (shape=torch.Size([1]))
+  prompt_text_token: OK (shape=torch.Size([1, 104]))
+  prompt_text_token_len: OK (shape=torch.Size([1]))
+
+  => ref와 API 추출 결과가 동일합니 다.

@@ -1,0 +1,5 @@
+# 로컬에서 백엔드 실행 시 (IDE 또는 ./gradlew bootRun)
+# CosyVoice는 Docker로 띄우고, localhost:50001 으로 접속
+cosyvoice:
+  service:
+    url: http://localhost:50001
