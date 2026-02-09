@@ -34,7 +34,7 @@
 
 ## 3. Robot Arm & Actuators (Servo)
 
-로봇팔 및 그리퍼/주사기 제어를 위한 서보모터 PWM 핀입니다.
+사료 공급기 및 주사기 제어를 위한 서보모터 PWM 핀입니다.
 
 | Function | Pin Name | Timer Channel | Note |
 | --- | --- | --- | --- |
