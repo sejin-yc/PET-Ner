@@ -1,0 +1,88 @@
+points_yaml: ""   # 비워두면 노드 파라미터 points_yaml 사용
+
+dock_targets:
+  1: {dist: 0.32, y: 0.006,  z: 0.08}
+  2: {dist: 0.5383, y: 0.0716, z: 0.1463}
+  3: {dist: 0.532, y: 0.013,  z: 0.149}
+  4: {dist: 0.486, y: 0.01,  z: 0.15}
+  5: {dist: 0.392, y: -0.02,  z: 0.092}
+
+steps:
+  # --- [이동 및 회전] ---
+  - {type: goto, point: p1, axis: auto, timeout: 30.0}
+  - {type: goto, point: p2, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: 90, timeout: 10.0}
+
+  # --- [1번 도킹 & 서보] ---
+  - {type: dock, aruco_id: 1, timeout: 60.0}
+  - {type: servo, cmd: "SERVO_TASK_1", timeout: 50.0}
+
+  # ✅ [추가] 뒤로 15cm 후진해서 도킹 해제 (Undock)
+  - {type: move_rel, axis: x, meters: -0.15, timeout: 10.0}
+
+  # --- [이동] ---
+  - {type: goto, point: p2, axis: auto, timeout: 30.0}
+  - {type: goto, point: p3, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: 0, timeout: 10.0}
+  - {type: goto, point: p4, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: -180, timeout: 10.0}
+  - {type: goto, point: p5, axis: auto, timeout: 30.0}
+
+  # --- [2번 도킹 & Replay 0 실행] ---
+  - {type: dock, aruco_id: 2, timeout: 60.0}
+
+  # ✅ [추가] 액션 전 5초 대기
+  - {type: sleep, duration: 5.0}
+  # [변경됨] ARM_TASK_1 -> replay 0
+  - {type: action, task: "replay 0", timeout: 180.0}
+
+  # --- [이동] ---
+  - {type: goto, point: p4, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: 0, timeout: 10.0}
+  - {type: goto, point: p6, axis: auto, timeout: 40.0}
+  - {type: rotate, yaw_deg: -90, timeout: 10.0}
+
+  # --- [3번 도킹 & Replay 1 실행] ---
+  - {type: dock, aruco_id: 3, timeout: 60.0}
+
+  # ✅ [추가] 액션 전 5초 대기
+  - {type: sleep, duration: 5.0}
+  # [변경됨] ARM_TASK_2 -> replay 1
+  - {type: action, task: "replay 1", timeout: 180.0}
+
+  # --- [이동] ---
+  - {type: goto, point: p4, axis: auto, timeout: 40.0}
+  - {type: rotate, yaw_deg: -180, timeout: 10.0}
+  - {type: goto, point: p5, axis: auto, timeout: 30.0}
+
+  # --- [2번 도킹 & Replay 2 실행] ---
+  - {type: dock, aruco_id: 2, timeout: 60.0}
+
+  # ✅ [추가] 액션 전 5초 대기
+  - {type: sleep, duration: 5.0}
+  # [변경됨] ARM_TASK_3 -> replay 2
+  - {type: action, task: "replay 2", timeout: 180.0}
+
+  # --- [이동] ---
+  - {type: goto, point: p4, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: 0, timeout: 10.0}
+  - {type: goto, point: p6, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: -90, timeout: 10.0}
+  - {type: goto, point: p7, axis: auto, timeout: 30.0}
+
+  # --- [4번 도킹 & Replay 3 실행] ---
+  - {type: dock, aruco_id: 4, timeout: 60.0}
+
+  # ✅ [추가] 액션 전 5초 대기
+  - {type: sleep, duration: 5.0}
+  # [변경됨] ARM_TASK_4 -> replay 3
+  - {type: action, task: "replay 3", timeout: 180.0}
+
+  # --- [복귀 및 종료] ---
+  - {type: goto, point: p7, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: -180, timeout: 10.0}
+  - {type: goto, point: p1, axis: auto, timeout: 30.0}
+  - {type: rotate, yaw_deg: 90, timeout: 10.0}
+  - {type: dock, aruco_id: 5, timeout: 60.0}
+  - {type: rotate, yaw_deg: -180, timeout: 10.0}
+  - {type: goto, point: home, axis: auto, timeout: 10.0}
