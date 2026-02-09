@@ -1,38 +1,44 @@
 
-# PET-NER Raspberry Pi Gateway
-
-이 모듈은 **PET-NER 반려묘 케어 로봇**에서  
-**Raspberry Pi 5가 수행하는 통신 및 안전 제어 게이트웨이** 역할을 정의한다.
-
-Raspberry Pi는 Web / Backend / AI 시스템과  
-STM32 기반 하드웨어 제어부 사이의 **중앙 중재 계층**으로 동작한다.
-
 ---
 
-## 역할 요약
-
-- Web UI 버튼 입력(이동, 정지, 급식/츄르 주기)을 **제어 명령으로 정규화**
-- Jetson Orin Nano의 **AI 판단 이벤트(danger 등)** 수신 후 즉시 안전 제어 수행
-- STM32와 **UART 바이너리 프로토콜**로 실시간 제어/상태 통신
-- 로봇 상태 및 이벤트를 **서버 / Web UI로 전달**
-
----
-
-## 시스템 위치
+젯슨에서 실행
 
 ```
+cd ~/pi_gateway
+source /opt/ros/humble/setup.bash
+source ~/pi_gateway/.venv_cpu/bin/activate
 
-Web / Backend / Jetson / ROS2
-↓
-Raspberry Pi (Control Gateway)
-↓
-STM32
+export BE_WS_URL="wss://i14c203.p.ssafy.io/ws"
+export PI_GATEWAY_PUBLIC_URL="https://i14c203.p.ssafy.io"
+export BE_USER_ID="1"
+export CAMERA_TOPIC="/front_cam/compressed"
+export VIDEO_SAVE_DIR="/home/ssafy/videos"
+
+python3 scripts/cat_detection_service.py \
+  --ckpt models/swin_tiny_best.pt \
+  --yolo-pose models/yolo_pose.pt
+
+source .venv_cpu/bin/activate
+pip install -r requirements.txt
+pip install requests aiohttp ultralytics
+
+source /opt/ros/humble/setup.bash
+export BE_WS_URL=wss://i14c203.p.ssafy.io/ws
+export PI_GATEWAY_PUBLIC_URL=https://i14c203.p.ssafy.io
+export BE_USER_ID=1
+export VIDEO_SAVE_DIR=/home/ssafy/videos
+export CAMERA_TOPIC=/front_cam/compressed
+export VIDEO_UPLOAD_URL=https://i14c203.p.ssafy.io/api/videos/upload
+
+python3 scripts/cat_detection_webrtc.py \
+  --ckpt models/swin_tiny_best.pt \
+  --yolo-pose models/yolo_pose.pt \
+  --record-sec 15 \
+  --prebuffer 3 \
+  --fps 15
+
 
 ```
-
-> Web / Backend / AI는 STM32와 직접 통신하지 않으며  
-> **모든 하드웨어 제어는 Raspberry Pi Gateway를 통해서만 수행된다.**
-
 ---
 
 ## 구현 상태
