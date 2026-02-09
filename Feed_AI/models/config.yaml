@@ -1,0 +1,9 @@
+# 그릇 + 사료 기준 "가득 찼을 때" 무게
+full_grams: 427.8
+
+# 표시/판단용 옵션 (선택)
+min_percent: 0
+max_percent: 100
+
+# 후처리 옵션
+round_percent: true
