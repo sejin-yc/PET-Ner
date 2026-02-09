@@ -25,20 +25,98 @@
 |  | Nginx | Alpine (Latest) | Reverse Proxy, SSL, WebSocket 지원 |
 | **Backend** | Java (OpenJDK) | **17** | <br>`java-17-openjdk` 
 
- |
-|  | Spring Boot | **3.2.2** | Web, Security, JPA, Websocket 
 
- |
-|  | Build Tool | Gradle 7.6 |  |
+| Spring Boot | **3.2.2** | Web, Security, JPA, Websocket 
+
+ 
+| Build Tool | Gradle 7.6 |
 | **Frontend** | Node.js | **20.x (LTS)** | 빌드 환경 
 
- |
-|  | React | **19.2.0** | Vite 번들러 사용 
 
- |
+| React | **19.2.0** | Vite 번들러 사용 
+
 | **Database** | PostgreSQL | **15** | 메인 RDBMS |
 | **Broker** | Mosquitto | 2.0 | MQTT 메시지 브로커 |
 
+### 1.3 로봇 하드웨어 구성 (Robot Hardware BOM)
+본 프로젝트의 자율주행 로봇은 3단 적층 구조(Tier-based)로 설계되었으며, 상세 부품 명세는 다음과 같습니다.
+
+| 층 (Tier) | 구분 | 부품명 (Model) | 수량 | 역할 및 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Tier 1**<br>(Drive & Sensing) | Motor | **JGB37-520** | 4 | 엔코더 내장 DC 기어드 모터 (하부 구동) |
+| | Driver | **MDD10A** | 2 | 듀얼 채널 모터 드라이버 (4륜 제어) |
+| | Wheel | **97mm Mecanum Wheel** | 1 Set | 전방향 이동(Omni-directional) 지원 휠 |
+| | IMU | **BNO085** | 1 | 9축 관성 측정 센서 (정밀 자세 제어용) |
+| **Tier 2**<br>(Logic & Power) | MCU | **STM32 Nucleo-F401RE** | 1 | 하위 제어기 (모터 PID 제어 및 센서 통합) |
+| | LiDAR | **LDS-01** | 1 | 2D 360도 레이저 스캐너 (SLAM 및 장애물 감지) |
+| | Power | **XL4016 / XL4015** | 각 1 | Buck Converter (전압 강하, MCU/센서 전원) |
+| | Power | **LTC3780** | 1 | Buck-Boost Module (전압 안정화, Jetson 전원) |
+| **Tier 3**<br>(AI & Main) | Main Board | **NVIDIA Jetson Orin Nano** | 1 | 메인 컴퓨터 (ROS2, 객체 인식, LLM/TTS 구동) |
+| | Actuator | **So Arm 101** | 1 | 다관절 로봇팔 (상호작용 및 조작) |
+| | Feeder | **Custom 3D Print** | 1 | 사료 급식통 (서보모터 제어) |
+| | Battery | **3S LiPo 5000mAh** | 1 | 11.1V 대용량 배터리 (전체 전원 공급) |
+| | BMS | **3S BMS Module** | 1 | 배터리 보호 회로 (과충전/과방전 방지) |
+
+### 1.4 하드웨어 배선 및 핀 맵핑 (Hardware Wiring & Pin Mapping)
+
+본 로봇은 **STM32F446RE (Nucleo-64)** 를 하위 제어기로 사용하며, 전원부와 제어 신호는 아래 아키텍처에 따라 연결됩니다.
+
+#### 1) 전원 아키텍처 (Power Architecture)
+3S LiPo 배터리(12.6V)를 메인 전원으로 사용하며, 노이즈 간섭 최소화를 위해 3단 분리 전원 시스템을 구축했습니다.
+
+| 층 (Tier) | 역할 | 구성 요소 및 설명 |
+| :--- | :--- | :--- |
+| **Tier 1**<br>(Drive) | **구동 전원** | **12.6V Raw Power**<br>- 배터리 직결 → MDD10A 모터 드라이버 공급<br>- 모터의 최대 토크 확보를 위해 감압 없이 사용 |
+| **Tier 2**<br>(Regulated) | **변환 전원** | **DC-DC Converter**<br>- **XL4016**: 12.6V → **5.1V** (SBC: Jetson/RPi 전용)<br>- **XL4015**: 12.6V → **5.0V** (STM32, 센서, 로직용)<br>- **LTC3780**: 12.6V → **12.0V** (로봇팔 서보모터 정격 전압 유지) |
+| **Tier 3**<br>(Source) | **메인 전원** | **Battery & BMS**<br>- 3S LiPo 배터리 및 보호회로(BMS) 탑재<br>- 전체 시스템의 전력 원천 |
+
+* **Common Ground**: 전위차로 인한 통신 오류 방지를 위해 모든 모듈의 GND를 통합했습니다.
+* **Voltage Monitoring**: 배터리 전압(12.6V)을 ADC 안전 범위(3.3V)로 맞추기 위해 **10kΩ:3.3kΩ 분배 저항**을 적용했습니다. (6V 입력 시 약 1.48V 측정)
+
+---
+
+#### 2) STM32F446RE 핀 할당 (Pin Mapping)
+
+하위 제어기(OpenCR/Nucleo)와 각 센서/액추에이터 간의 핀 연결 상세입니다.
+
+**① DC 모터 제어 (Mecanum Wheel Drive)**
+* **제어 방식:** PWM (속도) + GPIO (방향)
+* **PWM 주파수:** 20kHz
+
+| 모터 위치 | PWM Pin (TIM8) | DIR Pin (GPIO) |
+| :--- | :--- | :--- |
+| **Front Left (FL)** | **PC6** (CH1) | **PB0** |
+| **Front Right (FR)** | **PC7** (CH2) | **PB1** |
+| **Rear Left (RL)** | **PC8** (CH3) | **PB2** |
+| **Rear Right (RR)** | **PC9** (CH4) | **PB10** |
+
+**② 엔코더 피드백 (Encoder Feedback)**
+* **방식:** Quadrature Encoder Mode
+
+| 모터 위치 | Phase A | Phase B | Timer |
+| :--- | :--- | :--- | :--- |
+| **FL Encoder** | PA0 | PA1 | TIM2/5 |
+| **FR Encoder** | PB6 | PB7 | TIM4 |
+| **RL Encoder** | PA6 | PA7 | TIM3 |
+| **RR Encoder** | PA8 | PA9 | TIM1 |
+
+**③ 로봇팔 및 서보모터 (Actuators)**
+* **PWM 주파수:** 50Hz (Period 20ms)
+
+| 기능 | Pin Name | 비고 |
+| :--- | :--- | :--- |
+| **주사기 제어** | **PB14** | 180° 서보모터 |
+| **급식기 제어** | **PB15** | 360° 서보모터 (연속회전) |
+
+**④ 통신 및 센서 (Communication & Sensors)**
+
+| 기능 | Interface | Pin (TX/SCL) | Pin (RX/SDA) | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| **ROS2 Comm** | **UART4** | **PC10** | **PC11** | 상위 제어기(Jetson)와 통신 |
+| **IMU Sensor** | **I2C1** | **PB8** | **PB9** | BNO085/MPU6050 (자세제어) |
+| **Debug Log** | **USART2** | **PA2** | **PA3** | ST-Link 디버깅 콘솔 |
+
+> **참고:** IMU 센서의 인터럽트 핀은 `PC13`, 리셋 핀은 `PC14`에 할당되어 있습니다.
 ---
 
 ## 2. 프로젝트 구조 및 설정 파일
