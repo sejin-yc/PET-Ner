@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/action.idl.em
+// with input from catbot_interfaces/action/VlaTask.action
+// generated code does not contain a copyright notice
+
+
+module catbot_interfaces {
+  module action {
+    @verbatim (language="comment", text=
+      "Goal (Request)")
+    struct VlaTask_Goal {
+      string task_type;
+    };
+    @verbatim (language="comment", text=
+      "Result")
+    struct VlaTask_Result {
+      boolean success;
+
+      string message;
+    };
+    @verbatim (language="comment", text=
+      "Feedback")
+    struct VlaTask_Feedback {
+      string status;
+    };
+  };
+};

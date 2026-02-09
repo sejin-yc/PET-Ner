@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "catbot_interfaces__py",
+		"source" : "/home/hj/catbot_ws/build/catbot_interfaces/catbot_interfaces__py"
+	}
+}
